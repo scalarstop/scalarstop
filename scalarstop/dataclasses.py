@@ -74,12 +74,15 @@ def asdict(obj, *, dict_factory=dict):
 
     Example usage::
 
-      @dataclass
-      class C:
-          x: int
-          y: int
+        @dataclass
+        class C:
+            x: int
+            y: int
+
       c = C(1, 2)
+
       assert asdict(c) == {'x': 1, 'y': 2}
+
     If given, ``dict_factory`` will be used instead of built-in
     :py:class:`dict`.
 
@@ -144,12 +147,14 @@ def astuple(obj, *, tuple_factory=tuple):
 
     Example usage::
 
-      @dataclass
-      class C:
-          x: int
-          y: int
-    c = C(1, 2)
-    assert astuple(c) == (1, 2)
+        @dataclass
+        class C:
+            x: int
+            y: int
+
+        c = C(1, 2)
+        assert astuple(c) == (1, 2)
+
     If given, ``tuple_factory`` will be used instead of built-in
     :py:class:`tuple`.
 

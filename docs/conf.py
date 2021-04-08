@@ -35,6 +35,7 @@ extensions = [
     "autoapi.extension",
 ]
 
+autodoc_inherit_docstrings = True
 add_module_names = False
 
 # AutoAPI configuration
@@ -42,10 +43,10 @@ autoapi_type = "python"
 autoapi_dirs = ["../scalarstop"]
 autoapi_options = [
     "members",
+    "inherited-members",
     "undoc-members",
     "show-inheritance",
     "show-module-summary",
-    "imported-members",
 ]
 autoapi_python_class_content = "both"
 

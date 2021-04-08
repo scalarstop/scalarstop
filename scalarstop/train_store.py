@@ -1,7 +1,29 @@
 """
-Persists :py:class:`~scalarstop.DataBlob`,
-:py:class:`~scalarstop.ModelTemplate`,
-and :py:class:`~scalarstop.Model` metadata to a database.
+Persists :py:class:`~scalarstop.datablob.DataBlob`,
+:py:class:`~scalarstop.model_template.ModelTemplate`,
+and :py:class:`~scalarstop.model.Model` metadata to a database.
+
+What database should I use?
+----------------------------
+
+Currently the :py:class:`TrainStore` supports saving metadata
+and metrics to either a SQLite or a PostgreSQL database.
+If you are doing all of your work on a single machine, a
+SQLite database is easier to set up. But if you are training machine
+learning models on multiple machines, you should use a PostgreSQL
+database instead of SQLite. The SQLite database is not optimal
+for handling multiple concurrent writes.
+
+How can I extend the :py:class:`TrainStore`?
+--------------------------------------------
+
+The :py:class:`TrainStore` does not implement absolutely every
+type of query that you might want to perform on your
+training metrics. However, we directly expose our SQLAlchemy
+engine, connection, and tables in the :py:class:`TrainStore`
+attributes :py:attr:`TrainStore.engine`,
+:py:attr:`TrainStore.connection`, and
+:py:attr:`TrainStore.table`.
 """
 import dataclasses as _python_dataclasses
 import datetime
@@ -35,38 +57,32 @@ from sqlalchemy.exc import IntegrityError
 
 from scalarstop._datetime import utcnow
 from scalarstop.exceptions import SQLite_JSON_ModeDisabled
-from scalarstop.hyperparams import HyperparamsType as _HyperparamsType
 from scalarstop.hyperparams import enforce_dict
 
 _LOGGER = logging.getLogger(__name__)
 
-TABLE_NAME_PREFIX = "scalarstop__"
-
-HyperparamsType = Union[_HyperparamsType, Dict[str, Any]]
+_TABLE_NAME_PREFIX = "scalarstop__"
 
 _datablob_value_error = ValueError(
-    "You should not set both datablob_name and datablob_group_name. "
-    "Set datablob_name if you want to be more specific in your search "
-    "or set datablob_group_name if you want to be more general."
+    "You should not set both `datablob_name` and `datablob_group_name`. "
+    "Set `datablob_name` if you want to be more specific in your search "
+    "or set `datablob_group_name` if you want to be more general."
 )
 
 _model_template_value_error = ValueError(
-    "You should not set both model_template_name and model_template_group_name. "
-    "Set model_template_name if you want to be more specific in your search "
-    "or set model_template_group_name if you want to be more general."
+    "You should not set both `model_template_name` and `model_template_group_name`. "
+    "Set `model_template_name` if you want to be more specific in your search "
+    "or set `model_template_group_name` if you want to be more general."
 )
 
 _metric_direction_value_error = ValueError(
-    "Please provide both metric_name and metric_direction or neither."
+    "Please provide both `metric_name` and `metric_direction` or neither."
 )
 
 
 @_python_dataclasses.dataclass(frozen=True)
-class ModelMetadata:
-    """
-    A dataclass to store :py:class:`TrainStore` metadata for
-    a single :py:class:`~scalarstop.model.Model`.
-    """
+class _ModelMetadata:
+    """A dataclass to store :py:class:`TrainStore` metadata for a single :py:class:`~scalarstop.model.Model`."""  # pylint: disable=line-too-long
 
     model_name: str
     model_class_name: str
@@ -108,7 +124,7 @@ def _censor_sqlalchemy_url_password(url: str):
     return safe_url
 
 
-def sqlite_json_enabled():
+def _sqlite_json_enabled():
     """Return True if this Python installation supports SQLite3 JSON1."""
     connection = sqlite3.connect(":memory:")
     cursor = connection.cursor()
@@ -318,9 +334,20 @@ class TrainStore:
         echo: bool = False,
     ):
         """
+        Create a :py:class:`TrainStore` instance connected to
+        an external database.
+
+        Use this constructor if you want to connect to
+        a PostgreSQL database. If you want to use a SQLite file as the database,
+        you should instead use the :py:meth:`TrainStore.from_filesystem`
+        classmethod.
+
         Args:
             connection_string: A SQLAlchemy database connection
-                string for connecting to a database.
+                string for connecting to a database. A typical
+                PostgreSQL connection string looks like
+                ``"postgresql://username:password@hostname:port/database"``,
+                with the ``port`` defaulting to ``5432``.
 
             table_name_prefix: A string prefix to add to all of
                 the table names we generate. This allows multiple
@@ -341,7 +368,7 @@ class TrainStore:
         self._connection_string_no_password = _censor_sqlalchemy_url_password(
             self._connection_string
         )
-        self._table_name_prefix = table_name_prefix or TABLE_NAME_PREFIX
+        self._table_name_prefix = table_name_prefix or _TABLE_NAME_PREFIX
         self._echo = echo
         self._engine = create_engine(
             self._connection_string,
@@ -350,7 +377,7 @@ class TrainStore:
         )
         self._connection = self._engine.connect()
         if self._engine.name == "sqlite":
-            if not sqlite_json_enabled():
+            if not _sqlite_json_enabled():
                 raise SQLite_JSON_ModeDisabled()
             with self._connection.begin():
                 self._connection.execute(text("PRAGMA foreign_keys = ON"))
@@ -368,12 +395,35 @@ class TrainStore:
         """
         References to the :py:class:`sqlalchemy.schema.Table` objects
         representing our database tables.
+
+        Currently, there are four tables that are attributes to this
+        property:
+
+        * ``datablob``
+        * ``model_template``
+        * ``model``
+        * ``model_epoch``
         """
         return self._table
 
     @property
+    def engine(self):
+        """
+        The currently active :py:class:`sqlalchemy.engine.Engine`.
+
+        This is useful if you want to write custom SQLAlchemy
+        code on top of :py:class:`TrainStore`.
+        """
+        return self._engine
+
+    @property
     def connection(self):
-        """The currently active :py:class:`sqlalchemy.engine.base.Connection`."""
+        """
+        The currently active :py:class:`sqlalchemy.engine.Connection`.
+
+        This is useful if you want to write custom SQLAlchemy
+        code on top of :py:class:`TrainStore`.
+        """
         return self._connection
 
     def _insert(self, *, table, values, index_elements=None, ignore_existing: bool):
@@ -408,8 +458,22 @@ class TrainStore:
 
     def insert_datablob(self, datablob, *, ignore_existing: bool = False):
         """
-        Logs the :py:class:`~scalarstop.DataBlob` name, group name,
+        Logs the :py:class:`~scalarstop.datablob.DataBlob` name, group name,
         and hyperparams to the :py:class:`TrainStore`.
+
+        Args:
+            datablob: A :py:class:`~scalarstop.datablob.DataBlob`
+                instance whose name and hyperparameters that
+                we want to record in the database.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if a :py:class:`~scalarstop.datablob.DataBlob`
+                with the same name is already in the database,
+                in which case this function will do nothing.
+                Note that :py:class:`~scalarstop.datablob.DataBlob`
+                instances are supposed to be immutable, so
+                :py:class:`TrainStore` does not implement
+                updating them.
         """
         self.insert_datablob_by_str(
             name=datablob.name,
@@ -422,8 +486,27 @@ class TrainStore:
         self, *, name: str, group_name: str, hyperparams, ignore_existing: bool = False
     ):
         """
-        Logs the :py:class:`~scalarstop.DataBlob` name, group
+        Logs the :py:class:`~scalarstop.datablob.DataBlob` name, group
         name, and hyperparams to the :py:class:`TrainStore`.
+
+        Args:
+            name: Your :py:class:`~scalarstop.datablob.DataBlob`
+                name.
+
+            group_name: Your :py:class:`~scalarstop.datablob.DataBlob`
+                group name.
+
+            hyperparams: Your :py:class:`~scalarstop.datablob.DataBlob`
+                hyperparameters.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if a :py:class:`~scalarstop.datablob.DataBlob`
+                with the same name is already in the database,
+                in which case this function will do nothing.
+                Note that :py:class:`~scalarstop.datablob.DataBlob`
+                instances are supposed to be immutable, so
+                :py:class:`TrainStore` does not implement
+                updating them.
         """
         values = dict(
             datablob_name=name,
@@ -473,10 +556,22 @@ class TrainStore:
         *,
         datablob_name: Optional[Union[str, Sequence[str]]] = None,
         datablob_group_name: Optional[Union[str, Sequence[str]]] = None,
-    ):
+    ) -> pd.DataFrame:
         """
-        Returns a :py:class:`pd.DataFrame` listing ALL of the rows in the
-        :py:class:`~scalarstop.DataBlob` table.
+        Returns a :py:class:`pandas.DataFrame` listing the
+        :py:class:`~scalarstop.datablob.DataBlob` names in the database.
+
+        If you call this method without any arguments, it will list
+        ALL of the :py:class:`~scalarstop.datablob.DataBlob` s in
+        the database. You can narrow down your results by providing
+        ONE (but not both) of the below arguments.
+
+        Args:
+            datablob_name: Either a single :py:class:`~scalarstop.datablob.DataBlob`
+                name or a list of names to select.
+
+            datablob_group_name: Either a single :py:class:`~scalarstop.datablob.DataBlob`
+                group name or a list of group names to select.
         """
         return self._as_pandas(
             self._query_datablob_stmt(
@@ -486,8 +581,22 @@ class TrainStore:
 
     def insert_model_template(self, model_template, *, ignore_existing: bool = False):
         """
-        Logs the :py:class:`~scalarstop.ModelTemplate`
+        Logs the :py:class:`~scalarstop.model_template.ModelTemplate`
         name, group name, and hyperparams to the :py:class:`TrainStore`.
+
+        Args:
+            model_template: A :py:class:`~scalarstop.model_template.ModelTemplate`
+                instance whose name and hyperparameters that
+                we want to record in the database.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if a :py:class:`~scalarstop.model_template.ModelTemplate`
+                with the same name is already in the database,
+                in which case this function will do nothing.
+                Note that :py:class:`~scalarstop.model_template.ModelTemplate`
+                instances are supposed to be immutable, so
+                :py:class:`TrainStore` does not implement
+                updating them.
         """
         self.insert_model_template_by_str(
             name=model_template.name,
@@ -500,8 +609,27 @@ class TrainStore:
         self, *, name: str, group_name: str, hyperparams, ignore_existing: bool = False
     ):
         """
-        Logs the :py:class:`~scalarstop.ModelTemplate`
+        Logs the :py:class:`~scalarstop.model_template.ModelTemplate`
         name, group name, and hyperparams to the :py:class:`TrainStore`.
+
+        Args:
+            name: Your :py:class:`~scalarstop.model_template.ModelTemplate`
+                name.
+
+            group_name: Your :py:class:`~scalarstop.model_template.ModelTemplate`
+                group name.
+
+            hyperparams: Your :py:class:`~scalarstop.model_template.ModelTemplate`
+                hyperparameters.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if a :py:class:`~scalarstop.model_template.ModelTemplate`
+                with the same name is already in the database,
+                in which case this function will do nothing.
+                Note that :py:class:`~scalarstop.model_template.ModelTemplate`
+                instances are supposed to be immutable, so
+                :py:class:`TrainStore` does not implement
+                updating them.
         """
         values = dict(
             model_template_name=name,
@@ -560,8 +688,22 @@ class TrainStore:
         model_template_group_name: Optional[Union[str, Sequence[str]]] = None,
     ):
         """
-        Returns a :py:class:`pd.DataFrame` listing ALL of the rows in the
-        :py:class:`~scalarstop.ModelTemplate` table.
+        Returns a :py:class:`pandas.DataFrame` listing ALL of the rows in the
+        :py:class:`~scalarstop.model_template.ModelTemplate` table.
+
+        If you call this method without any arguments, it will list
+        ALL of the :py:class:`~scalarstop.model_template.ModelTemplate` s in
+        the database. You can narrow down your results by providing
+        ONE (but not both) of the below arguments.
+
+        Args:
+            model_template_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                name or a list of names to select.
+
+            model_template_group_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                group name or a list of group names to select.
         """
         return self._as_pandas(
             self._query_model_template_stmt(
@@ -573,9 +715,24 @@ class TrainStore:
     def insert_model(self, model, *, ignore_existing: bool = False):
         """
         Logs the :py:class:`~scalarstop.model.Model` name,
-        :py:class:`~scalarstop.DataBlob`, and
-        :py:class;`~scalarstop.ModelTemplate`
+        :py:class:`~scalarstop.datablob.DataBlob`, and
+        :py:class;`~scalarstop.model_template.ModelTemplate`
         to the :py:class:`TrainStore`.
+
+        Args:
+            model: A :py:class:`~scalarstop.model.Model`
+                instance whose name and hyperparameters that
+                we want to record in the database.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if a :py:class:`~scalarstop.model.Model`
+                with the same name is already in the database,
+                in which case this function will do nothing.
+                The :py:class:`TrainStore` does not implement
+                the updating of :py:class:`~scalarstop.model.Model`
+                name or hyperparameters. The only way to change
+                a :py:class:`~scalarstop.model.Model` is to
+                log more epochs.
         """
         self.insert_model_by_str(
             name=model.name,
@@ -596,9 +753,36 @@ class TrainStore:
     ):
         """
         Logs the :py:class:`~scalarstop.model.Model` name,
-        :py:class:`~scalarstop.DataBlob`, and
-        :py:class;`~scalarstop.ModelTemplate`
+        :py:class:`~scalarstop.datablob.DataBlob`, and
+        :py:class;`~scalarstop.model_template.ModelTemplate`
         to the :py:class:`TrainStore`.
+
+        Args:
+            name: The  :py:class:`~scalarstop.model.Model` name.
+
+            model_class_name: The :py:class:`~scalarstop.model.Model`
+                subclass name used. If you are using
+                :py:class:`~scalarstop.model.KerasModel`,
+                then this value is the string ``"KerasModel"``.
+
+            datablob_name: The :py:class:`~scalarstop.datablob.DataBlob`
+                name used to create the :py:class:`~scalarstop.model.Model`
+                instance.
+
+            model_template_name: The
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                name used to create the :py:class:`~scalarstop.model.Model`
+                instance.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if a :py:class:`~scalarstop.model.Model`
+                with the same name is already in the database,
+                in which case this function will do nothing.
+                The :py:class:`TrainStore` does not implement
+                the updating of :py:class:`~scalarstop.model.Model`
+                name or hyperparameters. The only way to change
+                a :py:class:`~scalarstop.model.Model` is to
+                log more epochs.
         """
         values = dict(
             model_name=name,
@@ -798,8 +982,36 @@ class TrainStore:
         model_template_group_name: Optional[Union[str, Sequence[str]]] = None,
     ):
         """
-        Returns a :py:class:`pd.DataFrame` listing ALL of the rows in the
+        Returns a :py:class:`pandas.DataFrame` listing ALL of the rows in the
         :py:class:`~scalarstop.model.Model` table.
+
+        If you call this method without any arguments, it will list ALL
+        of the :py:class:`~scalarstop.model.Model` s in the database.
+        Optionally, you can narrow down the results with the following
+        values.
+
+        Note that you can provide either ``datablob_name`` or
+        ``datablob_group_name``, but not both.
+
+        Similarly, you can provide either ``model_template_name``
+        or ``model_template_group_name``, but not both.
+
+        Args:
+            datablob_name: Either a single
+                :py:class:`~scalarstop.datablob.DataBlob`
+                name or a list of names to select.
+
+            datablob_group_name: Either a single
+                :py:class:`~scalarstop.datablob.DataBlob`
+                group name or a list of group names to select.
+
+            model_template_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                name or a list of names to select.
+
+            model_template_group_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                group name or a list of group names to select.
         """
         results_dicts = []
         stmt = self._query_model_stmt(
@@ -829,6 +1041,19 @@ class TrainStore:
         """
         Logs a new epoch for a :py:class:`~scalarstop.model.Model`
         to the :py:class:`TrainStore`.
+
+        Args:
+            epoch_num: The epoch number that we are adding.
+
+            model_name: The name of the :py:class:`~scalarstop.model.Model`
+                tha we are training.
+
+            metrics: A dictionary of metric names and values
+                to save.
+
+            ignore_existing: Set this to ``True`` to ignore
+                if the database already has a row with the same
+                ``(model_name, epoch_num)`` pair.
         """
         values = dict(
             model_epoch_num=epoch_num,
@@ -847,13 +1072,17 @@ class TrainStore:
 
     def bulk_insert_model_epochs(self, model):
         """
-        Insert a list of model epochs at once. Only works with SQLite and PostgreSQL.
+        Insert a list of :py:class:`~scalarstop.model.Model` epochs at once.
+
+        This method will politely ignore if the database already
+        contains rows with the same model name and epoch number.
+
+        Currently this method only works if you are using
+        either SQLite or PostgreSQL as the backing database.
 
         Args:
-            model_name: The name of the model that all of the epochs are for.
-
-            history: A Python list of dictionaries where the keys are metric names
-                and the values are metric values.
+            model: The :py:class:`~scalarstop.model.Model`
+                with the epochs that we want to save.
         """
         values = []
         for model_epoch_num in range(model.current_epoch):
@@ -915,8 +1144,16 @@ class TrainStore:
         model_name: Optional[Union[str, Sequence[str]]] = None,
     ):
         """
-        Returns a :py:class:`pd.DataFrame` listing ALL of the
+        Returns a :py:class:`pandas.DataFrame` listing
         :py:class:`~scalarstop.model.Model` epochs.
+
+        By default, this lists ALL epochs in the database for ALL
+        models. You can narrow down the search with the following
+        arguments.
+
+        Args:
+            model_name: Specify a single model name or a list
+                of model names whose epochs we are interested in.
         """
         results_dicts = []
         with self.connection.begin():
@@ -936,9 +1173,16 @@ class TrainStore:
 
     def get_current_epoch(self, model_name: str):
         """
-        Gets the largest epoch number for the given :py:class:`~scalarstop.model.Model`.
+        Returns how many epochs a given :py:class:`~scalarstop.model.Model` has been
+        trained for.
+
         Returns 0 if the given model is not registered in the
-        :py:class:`~scalarstop.TrainStore`.
+        :py:class:`TrainStore`.
+
+        This information is also saved in the directory created when a
+        :py:class:`~scalarstop.model.Model` instance is saved to the filesystem
+        and is available in the attribute
+        :py:attr:`~scalarstop.model.Model.current_epoch`.
         """
         if not isinstance(model_name, str):
             raise ValueError(
@@ -968,9 +1212,63 @@ class TrainStore:
         datablob_group_name: Optional[Union[str, Sequence[str]]] = None,
         model_template_name: Optional[Union[str, Sequence[str]]] = None,
         model_template_group_name: Optional[Union[str, Sequence[str]]] = None,
-    ) -> ModelMetadata:
+    ) -> _ModelMetadata:
         """
         Return metadata about the model with the best performance on a metric.
+
+        This method queries the database, looking for the
+        :py:class:`~scalarstop.model.Model` with the best performance
+        on the metric you specified in the parameter ``metric_name``.
+        By default, this returns ALL models in the database
+        sorted by your metric name. Most likely, you will want
+        to narrow down your search using the below arguments.
+
+        Note that you can provide either ``datablob_name`` or
+        ``datablob_group_name``, but not both.
+
+        Similarly, you can provide either ``model_template_name``
+        or ``model_template_group_name``, but not both.
+
+        Args:
+            metric_name: The name of one of the metrics
+                tracked when training a model. This might be a value
+                like ``"loss"`` or ``"val_accuracy"``.
+
+            metric_direction: Set this to ``"min"`` if the metric
+                you picked in ``metric_name`` is a value where
+                lower values are better--such as ``"loss"``.
+                Set this to ``"max"`` if higher values of your
+                metric are better--such as ``"accuracy"``.
+
+            datablob_name: Either a single
+                :py:class:`~scalarstop.datablob.DataBlob`
+                name or a list of names to select.
+
+            datablob_group_name: Either a single
+                :py:class:`~scalarstop.datablob.DataBlob`
+                group name or a list of group names to select.
+
+            model_template_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                name or a list of names to select.
+
+            model_template_group_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                group name or a list of group names to select.
+
+        Returns a dataclass with the following attributes:
+            * ``model_name``
+            * ``model_class_name``
+            * ``model_epoch_metrics``
+            * ``model_last_modified``
+            * ``datablob_name``
+            * ``datablob_group_name``
+            * ``datablob_hyperparams``
+            * ``model_template_name``
+            * ``model_template_group_name``
+            * ``model_template_hyperparams``
+            * ``sort_metric_name``
+            * ``sort_metric_value``
         """
         stmt = self._query_model_by_epoch_stmt(
             metric_name=metric_name,
@@ -984,7 +1282,7 @@ class TrainStore:
         with self.connection.begin():
             result_dict = dict(self.connection.execute(stmt).fetchone())
 
-        the_dataclass = ModelMetadata(
+        the_dataclass = _ModelMetadata(
             **result_dict,
             sort_metric_name=metric_name,
         )

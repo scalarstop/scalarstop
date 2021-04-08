@@ -1,18 +1,34 @@
-.. ScalarStop documentation master file, created by
-   sphinx-quickstart on Wed Mar 31 23:15:36 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
-Welcome to ScalarStop's documentation!
-======================================
+Organize your machine learning experiments with ScalarStop
+==========================================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+ScalarStop helps you train machine learning models by:
 
-Indices and tables
-==================
+* creating a system to uniquely name datasets, model
+  architectures, trained models, and their
+  hyperparameters.
+* saving and loading datasets and models to/from the
+  filesystem in a consistent way.
+* recording dataset and model names, hyperparameters, and
+  training metrics to a SQLite or PostgreSQL database.
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+Installation
+------------
+
+ScalarStop is available on PyPI. You can install it from
+the command line using::
+
+    pip3 install scalarstop
+
+Usage
+-----
+The best way to learn ScalarStop is to follow the
+`Official ScalarStop Tutorial <https://nbviewer.jupyter.org/github/scalarstop/scalarstop/blob/main/notebooks/tutorial.ipynb>`_.
+
+Afterwards, you might want to dig deeper into the ScalarStop documentation.
+In general, a typical ScalarStop workflow involves four steps:
+
+1. Organize your datasets with :py:mod:`scalarstop.datablob`.
+2. Describe your machine learning model architectures using :py:mod:`scalarstop.model_template`.
+3. Load, train, and save machine learning models with :py:mod:`scalarstop.model`.
+4. Save hyperparameters and training metrics to a SQLite or PostgreSQL database using :py:mod:`scalarstop.train_store`.

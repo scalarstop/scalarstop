@@ -1,7 +1,140 @@
 """
 Wrappers that specify models trained on specific
-:py:class:`~scalarstop.DataBlob` s.
-"""
+:py:class:`~scalarstop.datablob.DataBlob` instances.
+
+Creating and training models
+----------------------------
+
+The purpose of a :py:class:`Model` subclass instance--such as
+:py:class:`KerasModel`--is to join together a
+:py:class:`~scalarstop.datablob.DataBlob` instance
+and :py:class:`~scalarstop.model_template.ModelTemplate` instance
+into a trained model.
+
+It also manages saving and loading models to/from the filesystem
+and save hyperparameters and training metrics to the
+:py:class:`~scalarstop.train_store.TrainStore`.
+
+The `ScalarStop Tutorial <https://nbviewer.jupyter.org/github/scalarstop/scalarstop/blob/main/notebooks/tutorial.ipynb>`_
+demonstrates how to
+use ScalarStop when training real models on real data. Below
+is a brief sketch of how to load, save, and train models.
+
+First, we subclass :py:class:`~scalarstop.datablob.DataBlob` and
+create an instance. This is where we store our training, validation,
+and test sets.
+
+>>> import tensorflow as tf
+>>> import scalarstop as sp
+>>>
+>>> class MyDataBlob(sp.DataBlob):
+...
+...     @sp.dataclass
+...     class Hyperparams(sp.HyperparamsType):
+...             cols: int
+...
+...     def _data(self):
+...             x = tf.random.uniform(shape=(10, self.hyperparams.cols))
+...             y = tf.round(tf.random.uniform(shape=(10,1)))
+...             return tf.data.Dataset.zip((
+...                     tf.data.Dataset.from_tensor_slices(x),
+...                     tf.data.Dataset.from_tensor_slices(y),
+...             ))
+...
+...     def set_training(self):
+...         return self._data()
+...
+...     def set_validation(self):
+...         return self._data()
+...
+...     def set_test(self):
+...         return self._data()
+
+And when we create an instance of our
+:py:class:`~scalarstop.datablob.DataBlob` subclass, we should batch
+it if we plan on training a model with it.
+
+>>> datablob = MyDataBlob(hyperparams=dict(cols=3)).batch(2)
+
+Then, we define the *architecture* of the model we want to train
+by subclassing :py:class:`~scalarstop.model_template.ModelTemplate`
+and creating an instance.
+
+>>> class MyModelTemplate(sp.ModelTemplate):
+...    @sp.dataclass
+...
+...    class Hyperparams(sp.HyperparamsType):
+...        hidden_units: int
+...        optimizer: str = "adam"
+...
+...    def new_model(self):
+...        model = tf.keras.Sequential(
+...            layers=[
+...                tf.keras.layers.Dense(
+...                    units=self.hyperparams.hidden_units,
+...                    activation="relu",
+...                ),
+...                tf.keras.layers.Dense(
+...                    units=1,
+...                    activation="sigmoid"
+...                ),
+...           ],
+...            name=self.name,
+...        )
+...        model.compile(
+...            optimizer=self.hyperparams.optimizer,
+...            loss="binary_crossentropy",
+...            metrics=["accuracy"],
+...        )
+...        return model
+>>> model_template = MyModelTemplate(hyperparams=dict(hidden_units=5))
+
+Now we create a :py:class:`KerasModel` instance that bridges together
+our :py:class:`~scalarstop.datablob.DataBlob` and
+:py:class:`~scalarstop.model_template.ModelTemplate` instances.
+
+We'll also pass a directory to ``models_directory``. If we have
+a model saved in a subdirectory of ``models_directory``, we'll
+load that model instead of starting from scratch.
+
+>>> import os
+>>> import tempfile
+>>> tempdir = tempfile.TemporaryDirectory()
+>>>
+>>> model = sp.KerasModel.from_filesystem_or_model_template(
+...    datablob=datablob,
+...    model_template=model_template,
+...    models_directory=tempdir.name,
+... )
+
+Then you can call :py:meth:`KerasModel.fit` to fit your new model using your
+:py:class:`~scalarstop.datablob.DataBlob` 's training and validation sets.
+We pass ``models_directory`` here again--this time to *save* our
+model in a subdirectory.
+
+>>> history = model.fit(final_epoch=3, verbose=0, models_directory=tempdir.name)
+
+You can call :py:meth:`KerasModel.evalute` to evaluate your
+model against your :py:class:`~scalarstop.datablob.DataBlob` 's
+test set--or another :py:class:`tf.data.Dataset`
+of your choosing.
+
+>>> test_set_metrics = model.evaluate(verbose=0)
+
+(And now we clean up the temporary directory from our example.)
+>>> tempdir.cleanup()
+
+Using the :py:class:`~scalarstop.train_store.TrainStore`
+--------------------------------------------------------
+
+If you pass a :py:class:`~scalarstop.train_store.TrainStore` to
+:py:meth:`KerasModel.fit`, then the metrics generated while
+training will be saved to the Train Store's database, along with
+the :py:class:`~scalarstop.datablob.DataBlob` and
+:py:class:`~scalarstop.model_template.ModelTemplate`
+names and hyperparameters.
+
+"""  # pylint: disable=line-too-long
 import json
 import logging
 import os
@@ -16,7 +149,7 @@ from scalarstop.model_template import ModelTemplate
 from scalarstop.train_store import TrainStore
 from scalarstop.warnings import warn
 
-LOGGER = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 _HISTORY_FILENAME = "history.json"
 
@@ -232,7 +365,7 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
         self._models_directory = models_directory
         self._train_store = train_store
         self._log_epochs = log_epochs
-        self._logger = logger or LOGGER
+        self._logger = logger or _LOGGER
 
     def on_epoch_end(self, epoch: int, logs=None):
         super().on_epoch_end(epoch=epoch, logs=logs)

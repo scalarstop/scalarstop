@@ -1,4 +1,5 @@
 """Unit tests for scalarstop.model."""
+import doctest
 import os
 import tempfile
 import unittest
@@ -14,6 +15,12 @@ from tests.assertions import (
     assert_spkeras_models_are_equal,
 )
 from tests.fixtures import MyDataBlob, MyModelTemplate, requires_sqlite_json
+
+
+def load_tests(loader, tests, ignore):  # pylint: disable=unused-argument
+    """Have the unittest loader also run doctests."""
+    tests.addTests(doctest.DocTestSuite(sp.model))
+    return tests
 
 
 class TestModel(unittest.TestCase):

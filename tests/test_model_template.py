@@ -1,9 +1,16 @@
 """Unit tests for scalarstop.model_template."""
+import doctest
 import unittest
 
 import tensorflow as tf
 
 import scalarstop as sp
+
+
+def load_tests(loader, tests, ignore):  # pylint: disable=unused-argument
+    """Have the unittest loader also run doctests."""
+    tests.addTests(doctest.DocTestSuite(sp.model_template))
+    return tests
 
 
 class MyModelTemplate(sp.ModelTemplate):

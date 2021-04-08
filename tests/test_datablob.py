@@ -1,6 +1,7 @@
 """
 Test the scalarstop.datablob module
 """
+import doctest
 import itertools
 import json
 import os
@@ -20,6 +21,12 @@ from tests.assertions import (
     assert_directory,
     assert_hyperparams_are_equal,
 )
+
+
+def load_tests(loader, tests, ignore):  # pylint: disable=unused-argument
+    """Have the unittest loader also run doctests."""
+    tests.addTests(doctest.DocTestSuite(sp.datablob))
+    return tests
 
 
 class MyDataBlob(sp.DataBlob):

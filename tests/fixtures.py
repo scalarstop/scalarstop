@@ -12,7 +12,7 @@ requires_external_database = unittest.skipUnless(
 )
 
 requires_sqlite_json = unittest.skipIf(
-    not sp.train_store.sqlite_json_enabled(),
+    not sp.train_store._sqlite_json_enabled(),
     "The SQLite3 JSON1 extension is not enabled in this Python installation.",
 )
 
