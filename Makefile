@@ -10,6 +10,12 @@ clean:
 	$(MAKE) -C docs clean
 	rm -rf .coverage htmlcov
 
+shell:
+	$(POETRY) shell
+
+rm-venv:
+	rm -rf $$($(POETRY) env info --path)
+
 install:
 	$(POETRY) update
 	$(POETRY) install

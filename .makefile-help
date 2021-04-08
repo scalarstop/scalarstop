@@ -4,6 +4,10 @@ help:                displays this help command.
 
 clean:               clean this workspace.
 
+shell:               create a shell inside the Poetry virtualenv.
+
+rm-venv:             delete the Poetry virtualenv.
+
 install:             installs Python dependencies in a Poetry virtualenv.
 
 fmt:                 formats Python source code in-place.
