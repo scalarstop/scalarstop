@@ -1,0 +1,55 @@
+[tool.poetry]
+name = "scalarstop"
+version = "0.1.0"
+description = "A framework for managing machine learning experiments."
+authors = ["Neocrym Records Inc <engineering@neocrym.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+tensorflow = ">=2.0.0"
+pandas = "*"
+numpy = "*"
+cloudpickle = "^1.6.0"
+SQLAlchemy = "^1.4.5"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+black = "^20.8b1"
+isort = "^5.8.0"
+pylint = "^2.7.4"
+mypy = "^0.812"
+Sphinx = "^3.5.3"
+sphinx-autodoc-typehints = "^1.11.1"
+sphinx-autoapi = "^1.7.0"
+furo = "^2021.3.20-beta.31"
+coverage = "^5.5"
+
+[tool.black]
+target-version = ['py38']
+include = '\.pyi?$'
+exclude = '''
+
+(
+  /(
+      \.eggs
+    | \.git
+    | \.hg
+    | \.svn
+    | \.mypy_cache
+    | \.nox
+    | \.tox
+    | \.venv
+    | venv
+    | _build
+    | buck-out
+    | build
+    | migrations
+    | dist
+    | bin
+  )/
+)
+'''
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+

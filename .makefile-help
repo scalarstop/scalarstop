@@ -1,0 +1,29 @@
+scalarstop Makefile commands:
+
+help:                displays this help command.
+
+clean:               clean this workspace.
+
+install:             installs Python dependencies in a Poetry virtualenv.
+
+fmt:                 formats Python source code in-place.
+
+fmt-check:           tells you if the source code needs to be formatted, but
+                     does not do the formatting by itself.
+
+lint:                checks the source code for Python errors.
+
+docs:                builds the Sphinx documentation.
+
+build:               builds a Python wheel and places it in the `dist` dir.
+
+test:                runs unit tests.
+
+test-with-coverage   runs unit tests while measuring Python coverage.
+
+coverage-html        produces HTML output of coverage data from the
+                     last `test-with-coverage` runs.
+
+update-intersphinx:  downloads Sphinx definitions from our dependencies
+                     such as Pandas and TensorFlow.
+
