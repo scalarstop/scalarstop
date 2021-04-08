@@ -6,7 +6,13 @@ ScalarStop is a framework written in Python that helps you keep track of dataset
 Installation
 ------------
 
-ScalarStop is available on PyPI. You can install by running the command ``pip3 install scalarstop``.
+ScalarStop is `available on PyPI <https://pypi.org/project/scalarstop/>`_.
+You can install by running the command:
+
+.. code:: bash
+
+    pip3 install scalarstop
+
 
 Usage
 -----

@@ -15,10 +15,13 @@ ScalarStop helps you train machine learning models by:
 Installation
 ------------
 
-ScalarStop is available on PyPI. You can install it from
-the command line using::
+ScalarStop is `available on PyPI <https://pypi.org/project/scalarstop/>`_.
+You can install by running the command:
+
+.. code:: bash
 
     pip3 install scalarstop
+
 
 Usage
 -----
