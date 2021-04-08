@@ -17,14 +17,6 @@ certain values in internal code. This makes it difficult to
 
 This version of the :py:mod:`dataclasses` module is better-designed
 to be shared across different Python processes.
-
-For convenience, this module also reimports the following
-:py:mod:`dataclasses` functions for your convenience:
-
-- :py:func:`dataclasses.dataclass`
-- :py:func:`dataclasses.is_dataclass`
-- :py:func:`dataclasses.make_dataclass`
-
 """
 
 import copy
@@ -37,7 +29,6 @@ _FIELD_INITVAR = "_FIELD_INITVAR"
 # The name of an attribute on the class where we store the Field
 # objects.  Also used to check if a class is a Data Class.
 _FIELDS = "__dataclass_fields__"
-
 
 dataclass = _python_dataclasses.dataclass(frozen=True)
 
