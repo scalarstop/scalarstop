@@ -17,7 +17,7 @@ from tests.fixtures import (
 )
 
 
-class TrainStoreUnits(unittest.TestCase):
+class TrainStoreUnits:  # pylint: disable=no-member
     """
     Tests for :py:class:`~scalarstop.TrainStore`.
 
@@ -28,6 +28,7 @@ class TrainStoreUnits(unittest.TestCase):
     """
 
     def setUp(self):
+        """Setup."""
         self._models_directory_context = tempfile.TemporaryDirectory()
         self.models_directory = self._models_directory_context.name
 
@@ -37,9 +38,9 @@ class TrainStoreUnits(unittest.TestCase):
             datablob=self.datablob,
             model_template=self.model_template,
         )
-        self.train_store = sp.TrainStore(connection_string="sqlite://")
 
     def tearDown(self):
+        """Teardown."""
         self._models_directory_context.cleanup()
 
     def test_insert_datablob(self):
@@ -395,7 +396,7 @@ class TrainStoreUnits(unittest.TestCase):
 
 
 @requires_external_database
-class TestTrainStoreWithExternalDatabase(TrainStoreUnits):
+class TestTrainStoreWithExternalDatabase(TrainStoreUnits, unittest.TestCase):
     """
     Runs TrainStore unit test against an external non-SQLite database.
 
@@ -419,7 +420,7 @@ class TestTrainStoreWithExternalDatabase(TrainStoreUnits):
 
 
 @requires_sqlite_json
-class TestTrainStoreWithSQLite(TrainStoreUnits):
+class TestTrainStoreWithSQLite(TrainStoreUnits, unittest.TestCase):
     """Runs TrainStore unit tests against a SQLite backend."""
 
     def setUp(self):
