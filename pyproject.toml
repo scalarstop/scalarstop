@@ -11,6 +11,7 @@ pandas = "*"
 numpy = "*"
 cloudpickle = "^1.6.0"
 SQLAlchemy = "^1.4.5"
+psycopg2 = "^2.8.6"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
@@ -23,6 +24,7 @@ sphinx-autodoc-typehints = "^1.11.1"
 sphinx-autoapi = "^1.7.0"
 furo = "^2021.3.20-beta.31"
 coverage = "^5.5"
+jupyter = "^1.0.0"
 
 [tool.black]
 target-version = ['py38']

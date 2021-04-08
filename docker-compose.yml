@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: "postgres:9.5.25-alpine"
+    restart: always
+    environment:
+      POSTGRES_USER: scalarstop
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: train_store
+    ports:
+      - "5432:5432"

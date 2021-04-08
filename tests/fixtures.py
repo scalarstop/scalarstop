@@ -1,9 +1,15 @@
 """Fixtures for ScalarStop tests"""
+import os
 import unittest
 
 import tensorflow as tf
 
 import scalarstop as sp
+
+requires_external_database = unittest.skipUnless(
+    os.environ.get("TRAIN_STORE_CONNECTION_STRING", False),
+    "External database connection string was not supplied.",
+)
 
 requires_sqlite_json = unittest.skipIf(
     not sp.train_store.sqlite_json_enabled(),

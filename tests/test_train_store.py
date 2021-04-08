@@ -9,21 +9,27 @@ import unittest
 from sqlalchemy.exc import IntegrityError
 
 import scalarstop as sp
-from tests.fixtures import MyDataBlob, MyModelTemplate, requires_sqlite_json
+from tests.fixtures import (
+    MyDataBlob,
+    MyModelTemplate,
+    requires_external_database,
+    requires_sqlite_json,
+)
 
 
-@requires_sqlite_json
-class TestTrainStore(unittest.TestCase):
-    """Tests for :py:class:`~scalarstop.TrainStore`."""
+class TrainStoreUnits(unittest.TestCase):
+    """
+    Tests for :py:class:`~scalarstop.TrainStore`.
+
+    This is a parent class that contains train store tests,
+    but does not set up a specific TrainStore instance. We leave
+    that to the subclasses, allowing us to run the same tests
+    against multiple database backends.
+    """
 
     def setUp(self):
         self._models_directory_context = tempfile.TemporaryDirectory()
         self.models_directory = self._models_directory_context.name
-
-        self._sqlite_directory_context = tempfile.TemporaryDirectory()
-        self.sqlite_filename = os.path.join(
-            self._sqlite_directory_context.name, "train_store.sqlite3"
-        )
 
         self.datablob = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
         self.model_template = MyModelTemplate(hyperparams=dict(layer_1_units=2))
@@ -31,14 +37,10 @@ class TestTrainStore(unittest.TestCase):
             datablob=self.datablob,
             model_template=self.model_template,
         )
-        self.train_store = sp.TrainStore.from_filesystem(
-            filename=self.sqlite_filename,
-        )
+        self.train_store = sp.TrainStore(connection_string="sqlite://")
 
     def tearDown(self):
-        self.train_store.close()
         self._models_directory_context.cleanup()
-        self._sqlite_directory_context.cleanup()
 
     def test_insert_datablob(self):
         """Test :py:meth:`~scalarstop.TrainStore.insert_datablob`."""
@@ -390,3 +392,47 @@ class TestTrainStore(unittest.TestCase):
         )
         self.assertEqual(actual_best.sort_metric_name, "my_metric")
         self.assertEqual(actual_best.sort_metric_value, 72)
+
+
+@requires_external_database
+class TestTrainStoreWithExternalDatabase(TrainStoreUnits):
+    """
+    Runs TrainStore unit test against an external non-SQLite database.
+
+    To run these tests, provide a valid SQLAlchemy database connection
+    string in the environment variable `TRAIN_STORE_CONNECTION_STRING`.
+    """
+
+    def setUp(self):
+        super().setUp()
+        connection_string = os.environ["TRAIN_STORE_CONNECTION_STRING"]
+        # Every time we run a unit test, we should connect to the database
+        # and drop the database tables.
+        with sp.TrainStore(connection_string=connection_string) as train_store:
+            with train_store.connection.begin():
+                train_store.table.metadata.drop_all(train_store.connection)
+        self.train_store = sp.TrainStore(connection_string=connection_string)
+
+    def tearDown(self):
+        self.train_store.close()
+        super().tearDown()
+
+
+@requires_sqlite_json
+class TestTrainStoreWithSQLite(TrainStoreUnits):
+    """Runs TrainStore unit tests against a SQLite backend."""
+
+    def setUp(self):
+        super().setUp()
+        self._sqlite_directory_context = tempfile.TemporaryDirectory()
+        self.sqlite_filename = os.path.join(
+            self._sqlite_directory_context.name, "train_store.sqlite3"
+        )
+        self.train_store = sp.TrainStore.from_filesystem(
+            filename=self.sqlite_filename,
+        )
+
+    def tearDown(self):
+        super().tearDown()
+        self.train_store.close()
+        self._sqlite_directory_context.cleanup()

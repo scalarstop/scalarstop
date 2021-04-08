@@ -13,8 +13,8 @@ from typing import Any, Dict, Optional, Sequence, Union
 import pandas as pd
 import sqlalchemy.dialects.postgresql
 import sqlalchemy.dialects.sqlite
+from sqlalchemy import JSON as default_JSON
 from sqlalchemy import (
-    JSON,
     Column,
     DateTime,
     ForeignKey,
@@ -124,14 +124,21 @@ def sqlite_json_enabled():
 class _TrainStoreTables:
     """Manages our :py:class:`sqlalchemy.schema.Table` objects."""
 
-    def __init__(self, table_name_prefix: str):
+    def __init__(self, table_name_prefix: str, dialect: str):
         """
         Args:
             table_name_prefix: A string prefix to add to all of
                 the table names we generate. This allows multiple
                 installations of ScalarStop to share the same
                 database.
+
+            dialect: The SQLAlchemy dialect that we are
+                constructing database tables for.
         """
+        if dialect == "postgresql":
+            JSON = getattr(sqlalchemy.dialects, dialect).JSONB
+        else:
+            JSON = default_JSON
         self._table_name_prefix = table_name_prefix
         self._metadata = MetaData()
         self._datablob_table = Table(
@@ -323,6 +330,13 @@ class TrainStore:
             echo: Set to ``True`` to print out the SQL statements
                 that the :py:class:`TrainStore` executes.
         """
+        # The `postgres://` connection prefix is deprecated after
+        # SQLAlchemy 1.4. We'll do the find-and-replace on the user's
+        # behalf.
+        if connection_string.startswith("postgres://"):
+            connection_string = connection_string.replace(
+                "postgres://", "postgresql://", 1
+            )
         self._connection_string = connection_string
         self._connection_string_no_password = _censor_sqlalchemy_url_password(
             self._connection_string
@@ -340,7 +354,9 @@ class TrainStore:
                 raise SQLite_JSON_ModeDisabled()
             with self._connection.begin():
                 self._connection.execute(text("PRAGMA foreign_keys = ON"))
-        self._table = _TrainStoreTables(table_name_prefix=self._table_name_prefix)
+        self._table = _TrainStoreTables(
+            table_name_prefix=self._table_name_prefix, dialect=self._engine.name
+        )
         with self._connection.begin():
             self._table.metadata.create_all(bind=self._engine)
 
@@ -718,6 +734,7 @@ class TrainStore:
             self.table.model_template.c.model_template_group_name,
             self.table.model_template.c.model_template_hyperparams,
         ]
+        group_by_columns = columns.copy()
         sort_metric_value = None
         if metric_name and metric_direction:
             if metric_direction == "max":
@@ -732,8 +749,9 @@ class TrainStore:
                     f"not '{metric_direction}."
                 )
             sort_metric_value = select_sorting_func(
-                self.table.model_epoch.c.model_epoch_metrics[metric_name]
+                self.table.model_epoch.c.model_epoch_metrics[metric_name].as_float()
             ).label("sort_metric_value")
+
             columns.append(sort_metric_value)
         elif metric_name:
             raise _metric_direction_value_error
@@ -761,7 +779,9 @@ class TrainStore:
             stmt = stmt.where(and_(*where_conditions))
 
         if sort_metric_value is not None:
-            stmt = stmt.order_by(order_by_sorting_func(sort_metric_value))
+            stmt = stmt.group_by(*group_by_columns).order_by(
+                order_by_sorting_func(sort_metric_value)
+            )
         else:
             stmt = stmt.order_by(self.table.model.c.model_last_modified)
 
