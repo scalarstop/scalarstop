@@ -3,6 +3,10 @@ name = "scalarstop"
 version = "0.0.0"
 description = "A framework for managing machine learning experiments."
 authors = ["Neocrym Records Inc <engineering@neocrym.com>"]
+license = "MIT"
+readme = "README.rst"
+homepage = "https://www.scalarstop.com"
+repository = "https://github.com/scalarstop/scalarstop"
 
 [tool.poetry.dependencies]
 python = "^3.8"
