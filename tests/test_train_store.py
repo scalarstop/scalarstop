@@ -6,6 +6,7 @@ import random
 import tempfile
 import unittest
 
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 import scalarstop as sp
@@ -406,17 +407,48 @@ class TestTrainStoreWithExternalDatabase(TrainStoreUnits, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        connection_string = os.environ["TRAIN_STORE_CONNECTION_STRING"]
+        self.connection_string = os.environ["TRAIN_STORE_CONNECTION_STRING"]
         # Every time we run a unit test, we should connect to the database
         # and drop the database tables.
-        with sp.TrainStore(connection_string=connection_string) as train_store:
+        with sp.TrainStore(connection_string=self.connection_string) as train_store:
             with train_store.connection.begin():
                 train_store.table.metadata.drop_all(train_store.connection)
-        self.train_store = sp.TrainStore(connection_string=connection_string)
+        self.train_store = sp.TrainStore(connection_string=self.connection_string)
 
     def tearDown(self):
         self.train_store.close()
         super().tearDown()
+
+    def test_postgres_multiple_table_name_prefixes(self):
+        """Test multiple table name prefixes with the PostgreSQL database."""
+        with sp.TrainStore(
+            connection_string=self.connection_string, table_name_prefix="prefix_2__"
+        ) as train_store_2:
+            with sp.TrainStore(
+                connection_string=self.connection_string, table_name_prefix="prefix_3__"
+            ) as train_store_3:
+                for train_store in (self.train_store, train_store_2, train_store_3):
+                    with train_store.connection.begin():
+                        tables = {
+                            row[0]
+                            for row in train_store.connection.execute(
+                                text("SELECT tablename FROM pg_catalog.pg_tables")
+                            ).fetchall()
+                        }
+                    self.assertIn("scalarstop__datablob", tables)
+                    self.assertIn("scalarstop__model", tables)
+                    self.assertIn("scalarstop__model_epoch", tables)
+                    self.assertIn("scalarstop__model_template", tables)
+
+                    self.assertIn("prefix_2__datablob", tables)
+                    self.assertIn("prefix_2__model", tables)
+                    self.assertIn("prefix_2__model_epoch", tables)
+                    self.assertIn("prefix_2__model_template", tables)
+
+                    self.assertIn("prefix_3__datablob", tables)
+                    self.assertIn("prefix_3__model", tables)
+                    self.assertIn("prefix_3__model_epoch", tables)
+                    self.assertIn("prefix_3__model_template", tables)
 
 
 @requires_sqlite_json
@@ -437,3 +469,36 @@ class TestTrainStoreWithSQLite(TrainStoreUnits, unittest.TestCase):
         super().tearDown()
         self.train_store.close()
         self._sqlite_directory_context.cleanup()
+
+    def test_sqlite_multiple_table_name_prefixes(self):
+        """Test multiple table name prefixes with the SQLite3 database."""
+        with sp.TrainStore.from_filesystem(
+            filename=self.sqlite_filename, table_name_prefix="prefix_2__"
+        ) as train_store_2:
+            with sp.TrainStore.from_filesystem(
+                filename=self.sqlite_filename, table_name_prefix="prefix_3__"
+            ) as train_store_3:
+                for train_store in (self.train_store, train_store_2, train_store_3):
+                    with train_store.connection.begin():
+                        tables = {
+                            row[0]
+                            for row in train_store.connection.execute(
+                                text(
+                                    "SELECT name FROM sqlite_master WHERE type='table'"
+                                )
+                            ).fetchall()
+                        }
+                    self.assertIn("scalarstop__datablob", tables)
+                    self.assertIn("scalarstop__model", tables)
+                    self.assertIn("scalarstop__model_epoch", tables)
+                    self.assertIn("scalarstop__model_template", tables)
+
+                    self.assertIn("prefix_2__datablob", tables)
+                    self.assertIn("prefix_2__model", tables)
+                    self.assertIn("prefix_2__model_epoch", tables)
+                    self.assertIn("prefix_2__model_template", tables)
+
+                    self.assertIn("prefix_3__datablob", tables)
+                    self.assertIn("prefix_3__model", tables)
+                    self.assertIn("prefix_3__model_epoch", tables)
+                    self.assertIn("prefix_3__model_template", tables)
