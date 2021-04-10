@@ -2,7 +2,7 @@
 import datetime
 
 
-def utcnow():
+def utcnow() -> datetime.datetime:
     """
     Returns a TIMEZONE-AWARE :py:class:`datetime.datetime` object.
 

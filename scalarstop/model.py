@@ -138,8 +138,9 @@ names and hyperparameters.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
 
+import numpy as np
 import tensorflow as tf
 
 from scalarstop._filesystem import rmtree
@@ -162,7 +163,7 @@ class Model:
     @classmethod
     def from_filesystem(
         cls, *, datablob: DataBlob, model_template: ModelTemplate, models_directory: str
-    ):
+    ) -> "Model":
         """
         Load an already-trained model from the filesystem.
 
@@ -190,7 +191,9 @@ class Model:
         raise IsNotImplemented(f"{cls.__name__}.from_filesystem()")
 
     @classmethod
-    def from_model_template(cls, *, datablob: DataBlob, model_template: ModelTemplate):
+    def from_model_template(
+        cls, *, datablob: DataBlob, model_template: ModelTemplate
+    ) -> "Model":
         """
         Create a new :py:class:`Model` from a :py:class:`~scalarstop.ModelTemplate`.
 
@@ -213,7 +216,7 @@ class Model:
     @classmethod
     def from_filesystem_or_model_template(
         cls, *, datablob: DataBlob, model_template: ModelTemplate, models_directory: str
-    ):
+    ) -> "Model":
         """
         Load a saved model from the filesystem. If we can't find one, create a new one with
         the supplied :py:class:`~scalarstop.ModelTemplate`.
@@ -243,7 +246,9 @@ class Model:
                 datablob=datablob, model_template=model_template
             )
 
-    def __init__(self, *, datablob: DataBlob, model_template: ModelTemplate, model):
+    def __init__(
+        self, *, datablob: DataBlob, model_template: ModelTemplate, model: Any
+    ):
         self._datablob = datablob
         self._model_template = model_template
         self._model = model
@@ -253,7 +258,7 @@ class Model:
         )
 
     @staticmethod
-    def _make_name(*, model_template_name: str, datablob_name: str):
+    def _make_name(*, model_template_name: str, datablob_name: str) -> str:
         """
         Create a model name from a
         :py:class:`~scalarstop.ModelTemplate`
@@ -262,7 +267,7 @@ class Model:
         return f"mt_{model_template_name}__d_{datablob_name}"
 
     @property
-    def name(self):
+    def name(self) -> str:
         """
         This model's name.
 
@@ -275,7 +280,7 @@ class Model:
         return self._name
 
     @property
-    def datablob(self):
+    def datablob(self) -> DataBlob:
         """
         Returns the :py:class:`~scalarstop.DataBlob`
         used to create this model.
@@ -283,7 +288,7 @@ class Model:
         return self._datablob
 
     @property
-    def model_template(self):
+    def model_template(self) -> ModelTemplate:
         """
         Returns the :py:class:`~scalarstop.ModelTemplate`
         used to create this model.
@@ -291,12 +296,12 @@ class Model:
         return self._model_template
 
     @property
-    def model(self):
+    def model(self) -> Any:
         """The model object from the underlying machine learning framework."""
         return self._model
 
     @staticmethod
-    def load(model_path: str):
+    def load(model_path: str) -> Any:
         """
         Loads a model.
 
@@ -316,26 +321,26 @@ class Model:
         raise IsNotImplemented(f"{self.__class__.__name__}.history")
 
     @property
-    def current_epoch(self):
+    def current_epoch(self) -> int:
         """Returns how many epochs the current model has been trained."""
         raise IsNotImplemented(f"{self.__class__.__name__}.current_epoch")
 
-    def save(self, models_directory: str):
+    def save(self, models_directory: str) -> None:
         """Saves a model to the given directory."""
         raise IsNotImplemented(f"{self.__class__.__name__}.save()")
 
-    def fit(self, *, final_epoch: int, **kwargs):
+    def fit(self, *, final_epoch: int, **kwargs) -> Mapping[str, Sequence[float]]:
         """
         Fits the given model to the given
         :py:class:`~scalarstop.DataBlob`.
         """
         raise IsNotImplemented(f"{self.__class__.__name__}.fit()")
 
-    def predict(self, dataset):
+    def predict(self, dataset: tf.data.Dataset):
         """Runs predictions with the dataset on the model."""
         raise IsNotImplemented(f"{self.__class__.__name__}.predict()")
 
-    def evaluate(self, dataset=None):
+    def evaluate(self, dataset: Optional[tf.data.Dataset] = None) -> Sequence[float]:
         """Evaluate the model on a dataset."""
         raise IsNotImplemented(f"{self.__class__.__name__}.evaluate()")
 
@@ -343,7 +348,7 @@ class Model:
 _KERAS_HISTORY_TYPE = Dict[str, List[float]]
 
 
-def _logs_as_floats(logs: Mapping[str, Any]):
+def _logs_as_floats(logs: Mapping[str, Any]) -> Dict[str, float]:
     """Convert Keras metric log values to floats."""
     return {name: float(value) for name, value in logs.items()}
 
@@ -358,7 +363,7 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
         models_directory: Optional[str] = None,
         train_store: Optional[TrainStore] = None,
         log_epochs: bool = False,
-        logger=None,
+        logger: Optional[logging.Logger] = None,
     ):
         super().__init__()
         self._scalarstop_model = scalarstop_model
@@ -367,7 +372,9 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
         self._log_epochs = log_epochs
         self._logger = logger or _LOGGER
 
-    def on_epoch_end(self, epoch: int, logs=None):
+    def on_epoch_end(  # pylint: disable=signature-differs
+        self, epoch: int, logs: Dict[str, Any]
+    ) -> None:
         super().on_epoch_end(epoch=epoch, logs=logs)
         # Make sure that metrics are floats and not some
         # unserializable data type like tf.Tensor
@@ -415,7 +422,7 @@ class KerasModel(Model):
         datablob: DataBlob,
         model_template: ModelTemplate,
         models_directory: str,
-    ):
+    ) -> "KerasModel":
         model_name = cls._make_name(
             datablob_name=datablob.name, model_template_name=model_template.name
         )
@@ -452,7 +459,7 @@ class KerasModel(Model):
         *,
         datablob: DataBlob,
         model_template: ModelTemplate,
-        model,
+        model: Any,
         history: Optional[_KERAS_HISTORY_TYPE] = None,
     ):
         super().__init__(datablob=datablob, model_template=model_template, model=model)
@@ -480,12 +487,12 @@ class KerasModel(Model):
         return self._history
 
     @property
-    def current_epoch(self):
+    def current_epoch(self) -> int:
         if "loss" in self.history:
             return len(self.history["loss"])
         return 0
 
-    def save(self, models_directory: str):
+    def save(self, models_directory: str) -> None:
         model_path = os.path.join(models_directory, self.name)
         try:
             self._model.save(
@@ -520,7 +527,7 @@ class KerasModel(Model):
         callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
         train_store: Optional[TrainStore] = None,
         **kwargs,
-    ):
+    ) -> Mapping[str, Sequence[float]]:
         """
         Fit the Keras model to the :py:class:`~scalarstop.DataBlob`
         that this model was created for.
@@ -589,10 +596,10 @@ class KerasModel(Model):
 
     def predict(  # pylint: disable=arguments-differ
         self,
-        dataset,
+        dataset: tf.data.Dataset,
         verbose: Optional[int] = None,
         callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
-    ):
+    ) -> np.ndarray:
         """
         Use the model to generate predictions on this dataset.
 
@@ -617,10 +624,10 @@ class KerasModel(Model):
 
     def evaluate(  # pylint: disable=arguments-differ
         self,
-        dataset=None,
+        dataset: Optional[tf.data.Dataset] = None,
         verbose: Optional[int] = None,
         callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
-    ):
+    ) -> Sequence[float]:
         """
         Evaluate this model on the :py:class:`~scalarstop.DataBlob`'s test set.
 
@@ -645,4 +652,5 @@ class KerasModel(Model):
             callbacks = list(callbacks)
         else:
             callbacks = []
-        return self._model.evaluate(x=dataset, verbose=verbose, callbacks=callbacks)
+        retval = self._model.evaluate(x=dataset, verbose=verbose, callbacks=callbacks)
+        return cast(Sequence[float], retval)

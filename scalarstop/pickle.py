@@ -2,6 +2,8 @@
 A wrapper for cloudpickle to (de)serialize Python objects.
 """
 
+from typing import Any, BinaryIO, TextIO, Union, cast
+
 import cloudpickle
 
 _PICKLE_PROTOCOL_VERSION = 4
@@ -13,7 +15,7 @@ _PICKLE_ENCODING = "ASCII"
 _PICKLE_ERRORS = "strict"
 
 
-def load(file):
+def load(file: Union[BinaryIO, TextIO]) -> Any:
     """Load a Python object from a file handle."""
     return cloudpickle.load(
         file=file,
@@ -23,7 +25,7 @@ def load(file):
     )
 
 
-def loads(data):
+def loads(data: str) -> Any:
     """Load a Python object from a string."""
     return cloudpickle.loads(
         data=data,
@@ -33,18 +35,19 @@ def loads(data):
     )
 
 
-def dump(*, obj, file):
+def dump(*, obj: Any, file: Union[BinaryIO, TextIO]) -> None:
     """Dump a Python object to a file handle."""
-    return cloudpickle.dump(
+    cloudpickle.dump(
         obj=obj,
         file=file,
         protocol=_PICKLE_PROTOCOL_VERSION,
     )
 
 
-def dumps(obj):
+def dumps(obj: Any) -> str:
     """Dump a Python object to a string."""
-    return cloudpickle.dumps(
+    dumped = cloudpickle.dumps(
         obj=obj,
         protocol=_PICKLE_PROTOCOL_VERSION,
     )
+    return cast(str, dumped)

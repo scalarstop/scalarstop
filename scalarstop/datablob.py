@@ -198,7 +198,7 @@ we've demonstrated with :py:class:`DataBlob` subclass instances above.
 import errno
 import json
 import os
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Union, cast
 
 import pandas as pd
 import tensorflow as tf
@@ -228,7 +228,7 @@ _TFDATA_DIRECTORY_NAME = "tfdata"
 _SUBTYPES = (_SUBTYPE_TRAINING, _SUBTYPE_VALIDATION, _SUBTYPE_TEST)
 
 
-def _load_tfdata_dataset(path, element_spec=None):
+def _load_tfdata_dataset(path, element_spec=None) -> tf.data.Dataset:
     """
     Load a :py:class:`tf.data.Dataset` from a filesystem path.
 
@@ -373,14 +373,16 @@ class DataBlob:
         """Cache this :py:class:`DataBlob` into memory before iterating over it."""
         return _CacheDataBlob(wraps=self)
 
-    def save_hook(self, *, subtype, path) -> None:  # pylint: disable=unused-argument
+    def save_hook(  # pylint: disable=unused-argument
+        self, *, subtype: str, path: str
+    ) -> None:
         """
         Override this method to run additional code when saving this
         :py:class:`DataBlob` to disk.
         """
         return None
 
-    def save(self, dataset_directory) -> "DataBlob":
+    def save(self, dataset_directory: str) -> "DataBlob":
         """
         Save this :py:class:`DataBlob` to disk.
 
@@ -496,11 +498,15 @@ class DataFrameDataBlob(DataBlob):
     _test_dataframe: Optional[pd.DataFrame] = None
 
     @staticmethod
-    def load_from_directory(this_dataset_directory) -> "DataFrameDataBlob":
+    def load_from_directory(
+        this_dataset_directory: str,
+    ) -> Union[DataBlob, "DataFrameDataBlob"]:
         """Load a :py:class:`DataFrameDataBlob` from a directory on the filesystem."""
-        return _LoadDataFrameDataBlob.load_from_directory(
+        loaded = _LoadDataFrameDataBlob.load_from_directory(
             this_dataset_directory=this_dataset_directory
         )
+        cast("DataFrameDataBlob", loaded)
+        return loaded
 
     def __repr__(self) -> str:
         return f"<sp.DataFrameDataBlob {self.name}>"
@@ -612,7 +618,7 @@ class DataFrameDataBlob(DataBlob):
     def set_test(self) -> tf.data.Dataset:
         return self.transform(self.test_dataframe)
 
-    def save_hook(self, *, subtype, path) -> None:
+    def save_hook(self, *, subtype: str, path: str) -> None:
         super().save_hook(subtype=subtype, path=path)
         dataframe = getattr(self, subtype + "_dataframe", None)
         dataframe_path = os.path.join(path, _DATAFRAME_FILENAME)
@@ -636,7 +642,7 @@ class _WrapDataBlob(DataBlob):
         self._name = wraps.name
         self._group_name = wraps.group_name
 
-    def __getattribute__(self, key):
+    def __getattribute__(self, key: str):
         """
         Returns attributes on the wrapped object for any key that isn't present on this object.
 
@@ -649,7 +655,7 @@ class _WrapDataBlob(DataBlob):
             wraps = object.__getattribute__(self, "_wraps")
             return wraps.__getattribute__(key)
 
-    def _wrap_tfdata(self, tfdata) -> tf.data.Dataset:
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         raise IsNotImplemented("_WrapDataBlob._wrap_tfdata()")
 
     def set_training(self) -> tf.data.Dataset:
@@ -682,7 +688,7 @@ class _WrapDataBlob(DataBlob):
             self._test = self._wrap_tfdata(self._wraps.test)
         return self._test
 
-    def save_hook(self, *, subtype, path) -> None:
+    def save_hook(self, *, subtype: str, path: str) -> None:
         return self._wraps.save_hook(subtype=subtype, path=path)
 
 
@@ -697,12 +703,14 @@ class _BatchDataBlob(_WrapDataBlob):
     the batch size by the number of available replicas.
     """
 
-    def __init__(self, *, wraps, batch_size: int, with_tf_distribute: bool = False):
+    def __init__(
+        self, *, wraps: Any, batch_size: int, with_tf_distribute: bool = False
+    ):
         super().__init__(wraps=wraps)
         self._input_batch_size = batch_size
         self._with_tf_distribute = with_tf_distribute
         if self._with_tf_distribute:
-            self._final_batch_size = (
+            self._final_batch_size: int = (
                 self._input_batch_size
                 * tf.distribute.get_strategy().num_replicas_in_sync
             )
@@ -745,7 +753,9 @@ class _LoadDataBlob(DataBlob):
         self._group_name = group_name
 
     @classmethod
-    def load_from_directory(cls, this_dataset_directory):
+    def load_from_directory(
+        cls, this_dataset_directory: str
+    ) -> Union[DataBlob, DataFrameDataBlob]:
         metadata_path = os.path.join(this_dataset_directory, _METADATA_PICKLE_FILENAME)
         try:
             with open(metadata_path, "rb") as fh:
@@ -762,7 +772,7 @@ class _LoadDataBlob(DataBlob):
             hyperparams=hyperparams,
         )
 
-    def _load_tfdata(self, subtype) -> tf.data.Dataset:
+    def _load_tfdata(self, subtype: str) -> tf.data.Dataset:
         """Load one of the :py:class:`tf.data.Dataset` s that we have saved."""
         try:
             return _load_tfdata_dataset(

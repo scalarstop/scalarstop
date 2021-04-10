@@ -21,6 +21,7 @@ to be shared across different Python processes.
 
 import copy
 import dataclasses as _python_dataclasses
+from typing import Any, Dict, Tuple, cast
 
 _FIELD = "_FIELD"
 _FIELD_CLASSVAR = "_FIELD_CLASSVAR"
@@ -33,12 +34,12 @@ _FIELDS = "__dataclass_fields__"
 dataclass = _python_dataclasses.dataclass(frozen=True)
 
 
-def is_dataclass(obj) -> bool:
+def is_dataclass(obj: Any) -> bool:
     """Returns True if the input is a Python dataclass."""
     return _python_dataclasses.is_dataclass(obj)
 
 
-def fields(class_or_instance):
+def fields(class_or_instance: Any) -> Tuple[Any, ...]:
     """
     Forked verson of :py:func:`dataclasses.fields`.
 
@@ -60,12 +61,12 @@ def fields(class_or_instance):
     return tuple(f for f in the_fields.values() if repr(f._field_type) == _FIELD)
 
 
-def _is_dataclass_instance(obj):
+def _is_dataclass_instance(obj: Any) -> bool:
     """Returns True if obj is an instance of a dataclass."""
     return hasattr(type(obj), _FIELDS)
 
 
-def asdict(obj, *, dict_factory=dict):
+def asdict(obj: Any, *, dict_factory: type = dict) -> Dict[str, Any]:
     """
     Forked verson of :py:func:`dataclasses.asdict`.
 
@@ -93,7 +94,7 @@ def asdict(obj, *, dict_factory=dict):
     """
     if not _is_dataclass_instance(obj):
         raise TypeError("asdict() should be called on dataclass instances")
-    return _asdict_inner(obj, dict_factory)
+    return cast(Dict[str, Any], _asdict_inner(obj, dict_factory))
 
 
 def _asdict_inner(obj, dict_factory):
@@ -138,7 +139,7 @@ def _asdict_inner(obj, dict_factory):
         return copy.deepcopy(obj)
 
 
-def astuple(obj, *, tuple_factory=tuple):
+def astuple(obj, *, tuple_factory=tuple) -> Tuple[Any, ...]:
     """
     Forked verson of :py:func:`dataclasses.astuple`.
 

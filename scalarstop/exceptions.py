@@ -2,6 +2,8 @@
 Every custom ScalarStop exception.
 """
 
+from typing import Any
+
 from scalarstop.dataclasses import fields
 
 
@@ -14,7 +16,7 @@ class ScalarStopException(Exception):
 class YouForgotTheHyperparams(ValueError, ScalarStopException):
     """Raised when the user creates a class, but forgets to add a nested Hyperparams class."""
 
-    def __init__(self, obj):
+    def __init__(self, obj: Any):
         super().__init__(
             "Please make sure to define a dataclass containing "
             f"hyperparameters at `{obj.__class__.__name__}.Hyperparams`. "
@@ -26,7 +28,7 @@ class YouForgotTheHyperparams(ValueError, ScalarStopException):
 class WrongHyperparamsType(TypeError, ScalarStopException):
     """Raised when the user passes an object with the wrong type as hyperparams."""
 
-    def __init__(self, *, hyperparams, obj):
+    def __init__(self, *, hyperparams: Any, obj: Any):
         super().__init__(
             f"You passed an object with the type {type(hyperparams)} as hyperparams. "
             "Check with the surrounding class. You should either pass a dictionary "
@@ -38,7 +40,7 @@ class WrongHyperparamsType(TypeError, ScalarStopException):
 class WrongHyperparamsKeys(TypeError, ScalarStopException):
     """Raised when the user has passed extra or missing keys for constructing hyperparams."""
 
-    def __init__(self, hyperparams, hyperparams_class):
+    def __init__(self, hyperparams: Any, hyperparams_class: type):
         hyperparams_class_fields = [field.name for field in fields(hyperparams_class)]
         super().__init__(
             "Wrong keys passed to create hyperparams. "
@@ -143,7 +145,7 @@ class SQLite_JSON_ModeDisabled(RuntimeError, ScalarStopException):
     unavailable.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             "You want to start the TrainStore with a SQLite "
             "database, but we could not find the SQLite JSON1 "

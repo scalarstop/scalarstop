@@ -56,7 +56,7 @@ def hash_id(
 
 def decode_bytes_to_alphabet(
     digest: bytes, *, alphabet: str = DEFAULT_HASH_ID_ALPHABET, length: int
-):
+) -> str:
     """
     Decode an arbitrary byte string into our alphabet of choice.
 

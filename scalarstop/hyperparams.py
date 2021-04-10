@@ -1,7 +1,7 @@
 """
 Utilities for creating typed Python dataclasses for storing hyperparameters.
 """
-from typing import Mapping
+from typing import Any, Dict, Mapping
 
 from scalarstop._naming import hash_id
 from scalarstop.dataclasses import asdict, dataclass, is_dataclass
@@ -12,7 +12,7 @@ from scalarstop.exceptions import (
 )
 
 
-def enforce_dict(hyperparams):
+def enforce_dict(hyperparams: Any) -> Dict[Any, Any]:
     """Convert the input into a dictionary, whether it is a dataclass or not."""
     if hyperparams is None:
         return dict()
@@ -24,12 +24,12 @@ def enforce_dict(hyperparams):
         return dict(hyperparams)
 
 
-def hash_hyperparams(hyperparams):
+def hash_hyperparams(hyperparams: Any) -> str:
     """Return a string hash of a given Hyperparams dataclass."""
     return hash_id(asdict(hyperparams))
 
 
-def init_hyperparams(*, self, hyperparams, hyperparams_class):
+def init_hyperparams(*, self, hyperparams, hyperparams_class) -> Any:
     """
     Construct a hyperparams object from either a mapping or another hyperparams object.
     """

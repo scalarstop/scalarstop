@@ -2,7 +2,7 @@
 import shutil
 
 
-def rmtree(path):
+def rmtree(path: str) -> None:
     """Remove a filesystem tree. Ignore failures if the tree doesn't exist."""
     try:
         shutil.rmtree(path)

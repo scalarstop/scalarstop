@@ -30,7 +30,7 @@ import datetime
 import logging
 import sqlite3
 import urllib.parse
-from typing import Any, Dict, Optional, Sequence, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 
 import pandas as pd
 import sqlalchemy.dialects.postgresql
@@ -53,6 +53,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import insert as default_insert
 from sqlalchemy import select, text
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
 from scalarstop._datetime import utcnow
@@ -98,13 +99,13 @@ class _ModelMetadata:
     sort_metric_value: float
 
 
-def _enforce_list(value: Union[str, Sequence]):
+def _enforce_list(value: Union[str, Sequence[Any]]) -> List[Any]:
     if isinstance(value, str):
         return [value]
     return list(value)
 
 
-def _censor_sqlalchemy_url_password(url: str):
+def _censor_sqlalchemy_url_password(url: str) -> str:
     """
     Returns a SQLAlchemy URL without the password.
 
@@ -124,7 +125,7 @@ def _censor_sqlalchemy_url_password(url: str):
     return safe_url
 
 
-def _sqlite_json_enabled():
+def _sqlite_json_enabled() -> bool:
     """Return True if this Python installation supports SQLite3 JSON1."""
     connection = sqlite3.connect(":memory:")
     cursor = connection.cursor()
@@ -263,7 +264,7 @@ class _TrainStoreTables:
         return self._metadata
 
     @property
-    def datablob(self):
+    def datablob(self) -> Table:
         """
         The :py:class:`sqlalchemy.schema.Table` used to store
         :py:class:`~scalarstop.DataBlob` objects.
@@ -271,7 +272,7 @@ class _TrainStoreTables:
         return self._datablob_table
 
     @property
-    def model_template(self):
+    def model_template(self) -> Table:
         """
         The :py:class:`sqlalchemy.schema.Table`used to store
         :py:class:`~scalarstop.ModelTemplate` objects.
@@ -279,7 +280,7 @@ class _TrainStoreTables:
         return self._model_template_table
 
     @property
-    def model(self):
+    def model(self) -> Table:
         """
         The :py:class:`sqlalchemy.schema.Table` used to store
         :py:class:`~scalarstop.model.Model` objects.
@@ -287,7 +288,7 @@ class _TrainStoreTables:
         return self._model_table
 
     @property
-    def model_epoch(self):
+    def model_epoch(self) -> Table:
         """
         The :py:class:`sqlalchemy.schema.Table` used to store
         metrics from model epochs.
@@ -305,7 +306,7 @@ class TrainStore:
         filename: str,
         table_name_prefix: Optional[str] = None,
         echo: bool = False,
-    ):
+    ) -> "TrainStore":
         """
         Use a SQLite3 database file on the local filesystem as the train store.
 
@@ -391,7 +392,7 @@ class TrainStore:
         return f"<sp.TrainStore {self._connection_string_no_password}>"
 
     @property
-    def table(self):
+    def table(self) -> _TrainStoreTables:
         """
         References to the :py:class:`sqlalchemy.schema.Table` objects
         representing our database tables.
@@ -407,7 +408,7 @@ class TrainStore:
         return self._table
 
     @property
-    def engine(self):
+    def engine(self) -> Engine:
         """
         The currently active :py:class:`sqlalchemy.engine.Engine`.
 
@@ -417,7 +418,7 @@ class TrainStore:
         return self._engine
 
     @property
-    def connection(self):
+    def connection(self) -> Connection:
         """
         The currently active :py:class:`sqlalchemy.engine.Connection`.
 
@@ -426,7 +427,9 @@ class TrainStore:
         """
         return self._connection
 
-    def _insert(self, *, table, values, index_elements=None, ignore_existing: bool):
+    def _insert(
+        self, *, table, values, index_elements=None, ignore_existing: bool
+    ) -> None:
         if ignore_existing:
             if self._engine.name == "sqlite":
                 with self.connection.begin():
@@ -452,11 +455,11 @@ class TrainStore:
             with self.connection.begin():
                 self.connection.execute(default_insert(table).values(**values))
 
-    def _as_pandas(self, stmt):
+    def _as_pandas(self, stmt) -> pd.DataFrame:
         with self.connection.begin():
             return pd.read_sql_query(sql=stmt, con=self.connection)
 
-    def insert_datablob(self, datablob, *, ignore_existing: bool = False):
+    def insert_datablob(self, datablob, *, ignore_existing: bool = False) -> None:
         """
         Logs the :py:class:`~scalarstop.datablob.DataBlob` name, group name,
         and hyperparams to the :py:class:`TrainStore`.
@@ -483,7 +486,12 @@ class TrainStore:
         )
 
     def insert_datablob_by_str(
-        self, *, name: str, group_name: str, hyperparams, ignore_existing: bool = False
+        self,
+        *,
+        name: str,
+        group_name: str,
+        hyperparams: Any,
+        ignore_existing: bool = False,
     ):
         """
         Logs the :py:class:`~scalarstop.datablob.DataBlob` name, group
@@ -750,7 +758,7 @@ class TrainStore:
         datablob_name: str,
         model_template_name: str,
         ignore_existing: bool = False,
-    ):
+    ) -> None:
         """
         Logs the :py:class:`~scalarstop.model.Model` name,
         :py:class:`~scalarstop.datablob.DataBlob`, and
@@ -980,7 +988,7 @@ class TrainStore:
         datablob_group_name: Optional[Union[str, Sequence[str]]] = None,
         model_template_name: Optional[Union[str, Sequence[str]]] = None,
         model_template_group_name: Optional[Union[str, Sequence[str]]] = None,
-    ):
+    ) -> pd.DataFrame:
         """
         Returns a :py:class:`pandas.DataFrame` listing ALL of the rows in the
         :py:class:`~scalarstop.model.Model` table.
@@ -1037,7 +1045,7 @@ class TrainStore:
 
     def insert_model_epoch(
         self, *, epoch_num: int, model_name: str, metrics, ignore_existing: bool = False
-    ):
+    ) -> None:
         """
         Logs a new epoch for a :py:class:`~scalarstop.model.Model`
         to the :py:class:`TrainStore`.
@@ -1070,7 +1078,7 @@ class TrainStore:
             ignore_existing=ignore_existing,
         )
 
-    def bulk_insert_model_epochs(self, model):
+    def bulk_insert_model_epochs(self, model) -> None:
         """
         Insert a list of :py:class:`~scalarstop.model.Model` epochs at once.
 
@@ -1142,7 +1150,7 @@ class TrainStore:
     def list_model_epochs(
         self,
         model_name: Optional[Union[str, Sequence[str]]] = None,
-    ):
+    ) -> pd.DataFrame:
         """
         Returns a :py:class:`pandas.DataFrame` listing
         :py:class:`~scalarstop.model.Model` epochs.
@@ -1171,7 +1179,7 @@ class TrainStore:
                 )
         return pd.DataFrame(results_dicts)
 
-    def get_current_epoch(self, model_name: str):
+    def get_current_epoch(self, model_name: str) -> int:
         """
         Returns how many epochs a given :py:class:`~scalarstop.model.Model` has been
         trained for.
@@ -1288,10 +1296,10 @@ class TrainStore:
         )
         return the_dataclass
 
-    def __enter__(self):
+    def __enter__(self) -> "TrainStore":
         return self
 
-    def close(self):
+    def close(self) -> None:
         """
         Close the database connection.
 
@@ -1299,6 +1307,6 @@ class TrainStore:
         """
         self.connection.close()
 
-    def __exit__(self, exc_type, exc_value, exc_traceback):
+    def __exit__(self, exc_type, exc_value, exc_traceback) -> Literal[False]:
         self.close()
         return False
