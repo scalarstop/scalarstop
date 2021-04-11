@@ -198,7 +198,7 @@ we've demonstrated with :py:class:`DataBlob` subclass instances above.
 import errno
 import json
 import os
-from typing import Any, Mapping, Optional, Union, cast
+from typing import Any, Mapping, Optional, Union
 
 import pandas as pd
 import tensorflow as tf
@@ -505,7 +505,6 @@ class DataFrameDataBlob(DataBlob):
         loaded = _LoadDataFrameDataBlob.load_from_directory(
             this_dataset_directory=this_dataset_directory
         )
-        cast("DataFrameDataBlob", loaded)
         return loaded
 
     def __repr__(self) -> str:
