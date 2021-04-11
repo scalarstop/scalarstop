@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import unittest
+from typing import Any, Mapping, Optional, Union
 
 import pandas as pd
 import tensorflow as tf
@@ -211,6 +212,40 @@ class MyDataFrameDataBlob(sp.DataFrameDataBlob):
                 tf.data.Dataset.from_tensor_slices(dataframe[self.labels_column]),
             )
         )
+
+
+class MyAppendDataBlob(sp.AppendDataBlob):
+    """Fixture for testing sp.AppendDataBlob."""
+
+    @sp.dataclass
+    class Hyperparams(sp.AppendHyperparamsType):
+        """Hyperparams for MyAppendDataBlob."""
+
+        coefficient: int
+
+    hyperparams: "MyAppendDataBlob.Hyperparams"
+
+    def __init__(
+        self,
+        *,
+        parent: sp.DataBlob,
+        hyperparams: Optional[Union[Mapping[str, Any], sp.HyperparamsType]] = None,
+        secret2: str,
+    ):
+        super().__init__(parent=parent, hyperparams=hyperparams)
+        self._secret2 = secret2
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        return tfdata.map(
+            lambda row: row * self.hyperparams.coefficient,
+        )
+
+
+class MyAppendDataBlobNoHyperparams(sp.AppendDataBlob):
+    """Fixture for testing sp.AppendDataBlob without hyperparams."""
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        return tfdata.enumerate()
 
 
 class DataBlobTestCase(unittest.TestCase):
@@ -703,3 +738,147 @@ class TestDataFrameDataBlob(DataBlobTestCase):
                     )
                     assert_datablob_metadatas_are_equal(blob, loaded)
                     assert_datablob_dataframes_are_equal(blob, loaded)
+
+
+class TestAppendDataBlob(unittest.TestCase):
+    """Tests for AppendDataBlob."""
+
+    def assert_parentage(self, *, parent, append):
+        """A basket of assertions for parent and child DataBlobs."""
+        # Check that we have embedded the parent data.
+        self.assertEqual(append.hyperparams.parent.name, parent.name)
+        self.assertEqual(append.hyperparams.parent.group_name, parent.group_name)
+        self.assertEqual(
+            sp.enforce_dict(append.parent.hyperparams),
+            sp.enforce_dict(parent.hyperparams),
+        )
+        # Check that our AppendDataset has a unique name
+        # that is different from the parent.
+        self.assertTrue(append.name != parent.name)
+        self.assertTrue(append.group_name != parent.group_name)
+
+    def test_not_implemented(self):
+        """
+        Test that AppendDataBlob's _wrap_tfdata() is not implemented.
+
+        We have to implement that method in a subclass in order
+        for it to work.
+        """
+        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        append = sp.AppendDataBlob(parent=parent)
+        with self.assertRaises(sp.exceptions.IsNotImplemented):
+            append.training  # pylint: disable=pointless-statement
+        with self.assertRaises(sp.exceptions.IsNotImplemented):
+            append.validation  # pylint: disable=pointless-statement
+        with self.assertRaises(sp.exceptions.IsNotImplemented):
+            append.test  # pylint: disable=pointless-statement
+
+    def test_success(self):
+        """Test that AppendDataBlob works."""
+        coefficient = 10
+        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        append = MyAppendDataBlob(
+            parent=parent, hyperparams=dict(coefficient=coefficient), secret2="secret2"
+        )
+        # Assert the basics.
+        self.assert_parentage(parent=parent, append=append)
+
+        self.assertEqual(
+            set(sp.enforce_dict(append.hyperparams)), set(["parent", "coefficient"])
+        )
+        # Check that the transformation specified in _wrap_tfdata()
+        # actually happened.
+        for subtype in ("training", "validation", "test"):
+            with self.subTest(subtype):
+                for parent_tensor, append_tensor in zip(
+                    getattr(parent, subtype), getattr(append, subtype)
+                ):
+                    parent_value = parent_tensor.numpy()
+                    append_value = append_tensor.numpy()
+                    self.assertEqual(parent_value * coefficient, append_value)
+
+    def test_success_no_additional_hyperparams(self):
+        """Test that AppendDataBlob works when we have no additional hyperparams to add."""
+        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        append = MyAppendDataBlobNoHyperparams(parent=parent)
+
+        # Assert the basics.
+        self.assert_parentage(parent=parent, append=append)
+
+        # Assert that we have no other hyperparams.
+        self.assertEqual(set(sp.enforce_dict(append.hyperparams)), set(["parent"]))
+
+        # Check that the transformation specified in _wrap_tfdata()
+        # actually happened.
+        for subtype in ("training", "validation", "test"):
+            with self.subTest(subtype):
+                for idx, (
+                    parent_tensor,
+                    (append_tensor_idx_tensor, append_tensor),
+                ) in enumerate(zip(getattr(parent, subtype), getattr(append, subtype))):
+                    parent_value = parent_tensor.numpy()
+                    append_tensor_idx = append_tensor_idx_tensor.numpy()
+                    append_value = append_tensor.numpy()
+                    self.assertEqual(idx, append_tensor_idx)
+                    self.assertEqual(parent_value, append_value)
+
+    def test_no_hyperparams(self):
+        """Test AppendDataBlob without hyperparams."""
+        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
+            MyAppendDataBlob(parent=parent, secret2="secret2")
+
+    def test_unnecessary_hyperparams(self):
+        """Test AppendDataBlob with unnecessary hyperparameters."""
+        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
+            MyAppendDataBlob(
+                parent=parent,
+                hyperparams=dict(coefficient=10, unnecessary=1),
+                secret2="secret2",
+            )
+
+    def test_with_dataframe(self):
+        """Test that an AppendDataBlob can inherit from a DataFrameDataBlob."""
+        parent = MyDataFrameDataBlob()
+        append = MyAppendDataBlobNoHyperparams(parent=parent)
+
+        # Assert the basics.
+        self.assert_parentage(parent=parent, append=append)
+
+        # Assert that the dataframes are the same.
+        assert_datablob_dataframes_are_equal(parent, append)
+
+    def test_batch(self):
+        """Test batching on AppendDataBlob."""
+        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        append = MyAppendDataBlob(
+            parent=parent,
+            hyperparams=dict(coefficient=10),
+            secret2="secret2",
+        )
+        batched = append.batch(2)
+        for subtype in ["training", "validation", "test"]:
+            with self.subTest(subtype):
+                lst = list(getattr(batched, subtype))
+                self.assertEqual(len(lst), 3)
+                self.assertEqual(lst[0].shape, (2,))
+                self.assertEqual(lst[1].shape, (2,))
+                self.assertEqual(lst[2].shape, (1,))
+
+    def test_save_and_load_from_directory(self):
+        """Test that we can save an AppendDatablob and load it back."""
+        with tempfile.TemporaryDirectory() as dataset_directory:
+            coefficient = 10
+            parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+            append = MyAppendDataBlob(
+                parent=parent,
+                hyperparams=dict(coefficient=coefficient),
+                secret2="secret2",
+            )
+            append.save(dataset_directory)
+            append_loaded = MyAppendDataBlob.load_from_directory(
+                os.path.join(dataset_directory, append.name)
+            )
+            assert_datablob_metadatas_are_equal(append, append_loaded)
+            assert_datablobs_tfdatas_are_equal(append, append_loaded)

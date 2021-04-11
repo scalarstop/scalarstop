@@ -1,204 +1,20 @@
 """
-A class that generates a training, validation, and test set from a set of hyperparameters.
+Group together and name your training, validation, and test sets.
 
-The :py:class:`DataBlob` and :py:class:`DataFrameDataBlob`
-classes exist to help you group together and name your
-training, validation, and test sets and the hyperparameters
-to generate them.
+The classes in this module are used to group together
+data into training, validation, and test sets used for
+training machine learning models. We also record the
+hyperparameters used to process the dataset.
 
-An introduction to :py:class:`DataBlob`
----------------------------------------
-
-Create a subclass of :py:class:`DataBlob` named after
-the category of dataset you are creating. Inside your
-subclass, define a Python dataclass named ``Hyperparams``
-and override the methods :py:meth:`DataBlob.set_training`,
-:py:meth:`DataBlob.set_validation`, and :py:meth:`DataBlob.set_test`.
-
-Each one of these overrides should create a *new*
-:py:class:`tf.data.Dataset` instance representing your
-training, validation, and test sets. All of this
-looks like something below.
-
->>> import tensorflow as tf
->>> import scalarstop as sp
->>>
->>> class MyDataBlob(sp.DataBlob):
-...
-...     @sp.dataclass
-...     class Hyperparams(sp.HyperparamsType):
-...             cols: int
-...
-...     def _data(self):
-...             x = tf.random.uniform(shape=(10, self.hyperparams.cols))
-...             y = tf.round(tf.random.uniform(shape=(10,1)))
-...             return tf.data.Dataset.zip((
-...                     tf.data.Dataset.from_tensor_slices(x),
-...                     tf.data.Dataset.from_tensor_slices(y),
-...             ))
-...
-...     def set_training(self):
-...         return self._data()
-...
-...     def set_validation(self):
-...         return self._data()
-...
-...     def set_test(self):
-...         return self._data()
->>>
-
-In our above example, our training, validation, and test sets
-are created with the exact same code. In practice, you'll
-be creating them with different inputs.
-
-Now we create an instance of our subclass so we can start
-using it.
-
->>> datablob = MyDataBlob(hyperparams=dict(cols=3))
->>> datablob
-<sp.DataBlob MyDataBlob-bn5hpc7ueo2uz7as1747tetn>
-
-:py:class:`DataBlob` instances are given a unique name
-by hashing together the class name with the instance's
-hyperparameters.
-
->>> datablob.name
-'MyDataBlob-bn5hpc7ueo2uz7as1747tetn'
->>> datablob.group_name
-'MyDataBlob'
->>> datablob.hyperparams
-MyDataBlob.Hyperparams(cols=3)
->>> sp.enforce_dict(datablob.hyperparams)
-{'cols': 3}
-
-The methods :py:meth:`DataBlob.set_training`,
-:py:meth:`DataBlob.set_validation`, and :py:meth:`DataBlob.set_test`
-are responsible for creating *new* instances of
-:py:class:`tf.data.Dataset` objects.
-
-We save exactly one instance of each :py:class:`tf.data.Dataset`
-pipeline in the properties :py:attr:`DataBlob.training`,
-:py:attr:`DataBlob.validation`, and :py:attr:`DataBlob.test`.
-
->>> datablob.training
-<ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
->>> datablob.validation
-<ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
->>> datablob.test
-<ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
-
-:py:class:`DataBlob` objects have some methods for applying
-:py:mod:`tf.data` transformations to the training, validation, and
-test sets at the same time.
-
-:py:meth:`DataBlob.batch` will batch the training, validation,
-and test sets at the same time. If you call
-:py:meth:`DataBlob.batch` with the keyword argument
-``with_tf_distribute=True``, your input batch size will be
-multiplied by the number of replicas in your :py:mod:`tf.distribute`
-strategy.
-
-:py:meth:`DataBlob.cache` will cache the training, validation,
-and test sets in memory once you iterate over them. This is
-useful if your :py:class:`tf.data.Dataset` are doing something
-computationally expensive each time you iterate over them.
-
-:py:meth:`DataBlob.save` saves the training, validation, and test
-sets to a path on the filesystem. This can be loaded back with
-the classmethod :py:meth:`DataBlob.load_from_directory`.
-
->>> import os
->>> import tempfile
->>> tempdir = tempfile.TemporaryDirectory()
->>> datablob = datablob.save(tempdir.name)
->>> os.listdir(tempdir.name)
-['MyDataBlob-bn5hpc7ueo2uz7as1747tetn']
-
->>> my_datablob_path = os.path.join(tempdir.name, datablob.name)
->>> loaded_datablob = MyDataBlob.load_from_directory(my_datablob_path)
->>> loaded_datablob
-<sp.DataBlob MyDataBlob-bn5hpc7ueo2uz7as1747tetn>
-
-
-An introduction to :py:class:`DataFrameDataBlob`
-------------------------------------------------
-:py:class:`DataBlob` is useful when you want to manually define your
-:py:mod:`tf.data` pipelines and their input tensors. But it is likely
-that your training, validation, and test set inputs are already
-in a data structure like a :py:class:`pandas.DataFrame`.
-
-In that case, you can subclass a :py:class:`DataFrameDataBlob`.
-In your subclass, you can use class attributes to specify
-
-* the :py:class:`pandas.DataFrame` columns to use as the data samples and data labels
-* the percentage of the :py:class:`pandas.DataFrame` to split into the training,
-  validation, and test sets.
-
-Here is how to set the class attributes. These are the default values, by the way.
-
->>> class MyDataFrameDataBlob(sp.DataFrameDataBlob):
-...    samples_column: str = "samples"
-...    labels_column: str = "labels"
-...    training_fraction: float = 0.6
-...    validation_fraction: float = 0.2
-
-The above configuration will split the first 60% of your
-:py:class:`pandas.DataFrame` as the input tensors for your training set,
-the next 20% as the input tensors for your validation set, and the
-remainder of the :py:class:`~pandas.DataFrame` for your test set.
-
-But we are not done yet. In your :py:class:`DataFrameDataBlob` subclass,
-override the :py:meth:`DataFrameDataBlob.set_dataframe` method to
-create a new instance of the :py:class:`pandas.DataFrame` that
-describes all of the samples and labels in your training, validation,
-and test sets.
-
-Then, override :py:meth:`DataFrameDataBlob.transform` with a function
-that transforms an arbitrary :py:class:`pandas.DataFrame` into
-a :py:class:`tf.data.Dataset`. The :py:meth:`DataFrameDataBlob.transform`
-method is called to generate the :py:mod:`tf.data` pipelines
-at :py:attr:`DataFrameDataBlob.training`, :py:attr:`DataFrameDataBlob.validation`,
-and :py:attr:`DataFrameDataBlob.test`.
-
->>> import pandas as pd
->>> import tensorflow as tf
->>> import scalarstop as sp
->>>
->>> class MyDataFrameDataBlob(sp.DataFrameDataBlob):
-...    samples_column: str = "samples"
-...    labels_column: str = "labels"
-...    training_fraction: float = 0.6
-...    validation_fraction: float = 0.2
-...
-...    @sp.dataclass
-...    class Hyperparams(sp.HyperparamsType):
-...        length: int = 0
-...
-...    def set_dataframe(self):
-...        samples = list(range(self.hyperparams.length))
-...        labels = list(range(self.hyperparams.length))
-...        return pd.DataFrame(dict(samples=samples, labels=labels))
-...
-...    def transform(self, dataframe: pd.DataFrame):
-...        return tf.data.Dataset.zip((
-...                tf.data.Dataset.from_tensor_slices(dataframe[self.samples_column]),
-...                tf.data.Dataset.from_tensor_slices(dataframe[self.labels_column]),
-...        ))
-
->>> datablob2 = MyDataFrameDataBlob(hyperparams=dict(length=10))
-
-And you can use the resulting object in all of the same ways as
-we've demonstrated with :py:class:`DataBlob` subclass instances above.
-
-(and now let's clean up the temporary directory from above)
-
->>> tempdir.cleanup()
+The :py:class:`DataBlob` subclass name and hyperparameters
+are used to create a unique content-addressable name
+that makes it easy to keep track of many datasets at once.
 """
 
 import errno
 import json
 import os
-from typing import Any, Mapping, Optional, Union
+from typing import Any, Mapping, Optional, Type, Union
 
 import pandas as pd
 import tensorflow as tf
@@ -215,7 +31,14 @@ from scalarstop.exceptions import (
     IsNotImplemented,
     TensorFlowDatasetNotFound,
 )
-from scalarstop.hyperparams import HyperparamsType, hash_hyperparams, init_hyperparams
+from scalarstop.hyperparams import (
+    AppendHyperparamsType,
+    HyperparamsType,
+    NestedHyperparamsType,
+    enforce_dict,
+    hash_hyperparams,
+    init_hyperparams,
+)
 
 _METADATA_JSON_FILENAME = "metadata.json"
 _METADATA_PICKLE_FILENAME = "metadata.pickle"
@@ -262,9 +85,136 @@ def _load_tfdata_dataset(path, element_spec=None) -> tf.data.Dataset:
 
 
 class DataBlob:
-    """Subclass this and override :py:meth:`~DataBlob.set_training`, :py:meth:`~DataBlob.set_validation`, and :py:meth:`~DataBlob.set_test` to create :py:class:`tf.data.Dataset` pipelines."""  # pylint: disable=line-too-long
+    """
+    Subclass this to group your training, validation, and test sets for training machine learning models.
 
-    Hyperparams = HyperparamsType
+    Here is how to use :py:class:`DataBlob` to group your training,
+    validation, and test sets:
+
+    1. Subclass :py:class:`DataBlob` with a class name that describes
+       your dataset in general. In this example, we'll use
+       ``MyDataBlob`` as the class name.
+
+    2. Define a dataclass using the ``@sp.dataclass`` decorator at
+       ``MyDataBlob.Hyperparams``. We'll define an *instance* of
+       this dataclass at ``MyDataBlob.hyperparams``. This describes
+       the hyperparameters involved in processing your dataset.
+
+    3. Override the methods :py:meth:`DataBlob.set_training`,
+       :py:meth:`DataBlob.set_validation`, and :py:meth:`DataBlob.set_test`
+       to generate :py:class:`tf.data.Dataset` pipelines
+       representing your training, validation, and test sets.
+
+    Those three steps roughly look like:
+
+    >>> import tensorflow as tf
+    >>> import scalarstop as sp
+    >>>
+    >>> class MyDataBlob(sp.DataBlob):
+    ...
+    ...     @sp.dataclass
+    ...     class Hyperparams(sp.HyperparamsType):
+    ...             cols: int
+    ...
+    ...     def _data(self):
+    ...             x = tf.random.uniform(shape=(10, self.hyperparams.cols))
+    ...             y = tf.round(tf.random.uniform(shape=(10,1)))
+    ...             return tf.data.Dataset.zip((
+    ...                     tf.data.Dataset.from_tensor_slices(x),
+    ...                     tf.data.Dataset.from_tensor_slices(y),
+    ...             ))
+    ...
+    ...     def set_training(self):
+    ...         return self._data()
+    ...
+    ...     def set_validation(self):
+    ...         return self._data()
+    ...
+    ...     def set_test(self):
+    ...         return self._data()
+    >>>
+
+    In our above example, our training, validation, and test sets
+    are created with the exact same code. In practice, you'll
+    be creating them with different inputs.
+
+    Now we create an instance of our subclass so we can start
+    using it.
+
+    >>> datablob = MyDataBlob(hyperparams=dict(cols=3))
+    >>> datablob
+    <sp.DataBlob MyDataBlob-bn5hpc7ueo2uz7as1747tetn>
+
+    :py:class:`DataBlob` instances are given a unique name
+    by hashing together the class name with the instance's
+    hyperparameters.
+
+    >>> datablob.name
+    'MyDataBlob-bn5hpc7ueo2uz7as1747tetn'
+    >>>
+    >>> datablob.group_name
+    'MyDataBlob'
+    >>>
+    >>> datablob.hyperparams
+    MyDataBlob.Hyperparams(cols=3)
+    >>>
+    >>> sp.enforce_dict(datablob.hyperparams)
+    {'cols': 3}
+
+    We save exactly one instance of each :py:class:`tf.data.Dataset`
+    pipeline in the properties :py:attr:`DataBlob.training`,
+    :py:attr:`DataBlob.validation`, and :py:attr:`DataBlob.test`.
+
+    >>> datablob.training
+    <ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
+    >>>
+    >>> datablob.validation
+    <ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
+    >>>
+    >>> datablob.test
+    <ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
+
+    :py:class:`DataBlob` objects have some methods for applying
+    :py:mod:`tf.data` transformations to the training, validation, and
+    test sets at the same time:
+
+    * **Batching.** :py:meth:`DataBlob.batch` will batch the training, validation,
+      and test sets at the same time. If you call
+      :py:meth:`DataBlob.batch` with the keyword argument
+      ``with_tf_distribute=True``, your input batch size will be
+      multiplied by the number of replicas in your :py:mod:`tf.distribute`
+      strategy.
+
+    * **Caching.** :py:meth:`DataBlob.cache` will cache the training, validation,
+      and test sets in memory once you iterate over them. This is
+      useful if your :py:class:`tf.data.Dataset` are doing something
+      computationally expensive each time you iterate over them.
+
+    * **Saving/loading to/from the filesystem.** :py:meth:`DataBlob.save`
+      saves the training, validation, and test
+      sets to a path on the filesystem. This can be loaded back with
+      the classmethod :py:meth:`DataBlob.load_from_directory`.
+
+    >>> import os
+    >>> import tempfile
+    >>> tempdir = tempfile.TemporaryDirectory()
+    >>>
+    >>> datablob = datablob.save(tempdir.name)
+    >>>
+    >>> os.listdir(tempdir.name)
+    ['MyDataBlob-bn5hpc7ueo2uz7as1747tetn']
+
+    >>> my_datablob_path = os.path.join(tempdir.name, datablob.name)
+    >>> loaded_datablob = MyDataBlob.load_from_directory(my_datablob_path)
+    >>> loaded_datablob
+    <sp.DataBlob MyDataBlob-bn5hpc7ueo2uz7as1747tetn>
+
+    (and now let's clean up the temporary directory from above)
+
+    >>> tempdir.cleanup()
+    """  # pylint: disable=line-too-long
+
+    Hyperparams: Type[HyperparamsType] = HyperparamsType
     hyperparams: HyperparamsType
 
     _training: Optional[tf.data.Dataset] = None
@@ -295,23 +245,7 @@ class DataBlob:
 
     @property
     def name(self) -> str:
-        """
-        The name of this specific dataset.
-
-        If you intend on overriding this method, make sure that
-        instances of the same class with different hyperparameters
-        will have different names.
-
-        However, if you have additional parameters to your
-        subclass's ``__init__()`` or configuration that are not
-        hyperparameters to your :py:class:`DataBlob`, then they
-        should not change the name. For example, you might want to
-        pass a database connection string or a filesystem path
-        to your :py:class:`DataBlob` subclass. Other users of your
-        subclass might have different values for those parameters,
-        but they don't change the actual dataset itself--and
-        therefore should not change the :py:class:`DataBlob` name.
-        """
+        """The name of this specific dataset."""
         if self._name is None:
             self._name = "-".join((self.group_name, hash_hyperparams(self.hyperparams)))
         return self._name
@@ -485,7 +419,74 @@ class DataBlob:
 
 
 class DataFrameDataBlob(DataBlob):
-    """Subclass this to create a a :py:class:`DataBlob` where the resulting :py:class:`tf.data.Dataset` pipelines are each fed a :py:class:`pandas.DataFrame` of input tensors."""  # pylint: disable=line-too-long
+    """
+    Subclass this to transform a :py:class:`pandas.DataFrame` into your training, validation, and test sets.
+
+    :py:class:`DataBlob` is useful when you want to manually define your
+    :py:mod:`tf.data` pipelines and their input tensors.
+
+    However, if your input tensors are in a fixed-size list or
+    :py:class:`~pandas.DataFrame` that you want to *slice* into
+    a training, validation, and test set, then you might find
+    :py:class:`DataFrameDataBlob` handy.
+
+    Here is how to use it:
+
+    1. Subclass :py:class:`DataFrameDataBlob` with a class name that
+       describes your dataset.
+
+    2. Override :py:meth:`DataFrameDataBlob.set_dataframe` and have
+       it return a *single* :py:class:`~pandas.DataFrame` that contains
+       all of the *inputs* for your training, validation, and
+       test sets. The :py:class:`~pandas.DataFrame` should have
+       one column representing training samples and another
+       column representing training labels.
+
+    3. Override :py:meth:`DataFrameDataBlob.transform` and define
+       a method that transforms an arbitrary :py:class:`~pandas.DataFrame`
+       of *inputs* into a :py:class:`tf.data.Dataset` pipeline
+       that represents the actual dataset needed for training
+       and evaluation.
+
+    We define what fraction of the :py:class:`~pandas.DataFrame` to split
+    with the class attributes :py:attr:`DataFrameDataBlob.training_fraction`
+    and :py:attr:`DataFrameDataBlob.validation_fraction`. By default,
+    60 percent of the :py:class:`~pandas.DataFrame` is marked
+    for the training set, 20 percent for the validation set,
+    and the remainder of the :py:class:`~pandas.DataFrame` for the test set.
+
+    Roughly, this looks like:
+
+    >>> import pandas as pd
+    >>> import tensorflow as tf
+    >>> import scalarstop as sp
+    >>>
+    >>> class MyDataFrameDataBlob(sp.DataFrameDataBlob):
+    ...    samples_column: str = "samples"
+    ...    labels_column: str = "labels"
+    ...    training_fraction: float = 0.6
+    ...    validation_fraction: float = 0.2
+    ...
+    ...    @sp.dataclass
+    ...    class Hyperparams(sp.HyperparamsType):
+    ...        length: int = 0
+    ...
+    ...    def set_dataframe(self):
+    ...        samples = list(range(self.hyperparams.length))
+    ...        labels = list(range(self.hyperparams.length))
+    ...        return pd.DataFrame({self.samples_column: samples, self.labels_column: labels})
+    ...
+    ...    def transform(self, dataframe: pd.DataFrame):
+    ...        return tf.data.Dataset.zip((
+    ...                tf.data.Dataset.from_tensor_slices(dataframe[self.samples_column]),
+    ...                tf.data.Dataset.from_tensor_slices(dataframe[self.labels_column]),
+    ...        ))
+
+    >>> datablob2 = MyDataFrameDataBlob(hyperparams=dict(length=10))
+
+    And you can use the resulting object in all of the same ways as
+    we've demonstrated with :py:class:`DataBlob` subclass instances above.
+    """  # pylint: disable=line-too-long
 
     samples_column: str = "samples"
     labels_column: str = "labels"
@@ -689,6 +690,181 @@ class _WrapDataBlob(DataBlob):
 
     def save_hook(self, *, subtype: str, path: str) -> None:
         return self._wraps.save_hook(subtype=subtype, path=path)
+
+
+class AppendDataBlob(DataBlob):
+    """
+    Subclass this to create a new :py:class:`DataBlob` that extends an existing :py:class:`DataBlob`.
+
+    The :py:class:`AppendDataBlob` class is useful when you have an existing
+    :py:class:`DataBlob` or :py:class:`DataFrameDataBlob` with most, but not *all*
+    of the functionality you need. If you are trying to implement multiple
+    data pipelines that share a common compute-intensive first step, you
+    can implement your pipelines as :py:class:`AppendDataBlob` subclasses with
+    the common first step as a :py:class:`DataBlob` that you save and load
+    to/from the filesystem.
+
+    Let's begin by creating a :py:class:`DataBlob` that we will use as a
+    parent for an :py:class:`AppendDataBlob`.
+
+    >>> import tensorflow as tf
+    >>> import scalarstop as sp
+    >>>
+    >>> class MyDataBlob(sp.DataBlob):
+    ...
+    ...     @sp.dataclass
+    ...     class Hyperparams(sp.HyperparamsType):
+    ...             length: int
+    ...
+    ...     def _data(self):
+    ...         length = self.hyperparams.length
+    ...         x = tf.data.Dataset.from_tensor_slices(list(range(0, length)))
+    ...         y = tf.data.Dataset.from_tensor_slices(list(range(length, length * 2)))
+    ...         return tf.data.Dataset.zip((x, y))
+    ...
+    ...     def set_training(self):
+    ...         return self._data()
+    ...
+    ...     def set_validation(self):
+    ...         return self._data()
+    ...
+    ...     def set_test(self):
+    ...         return self._data()
+    >>>
+
+    And then we create an instance of the datablob and save it to
+    the filesystem.
+
+    >>> import os
+    >>> import tempfile
+    >>> tempdir = tempfile.TemporaryDirectory()
+    >>>
+    >>> datablob = MyDataBlob(hyperparams=dict(length=5))
+    >>> datablob
+    <sp.DataBlob MyDataBlob-dac936v7mb1ue9phjp6tc3sb>
+    >>>
+    >>> list(datablob.training.as_numpy_iterator())
+    [(0, 5), (1, 6), (2, 7), (3, 8), (4, 9)]
+    >>>
+    >>> datablob = datablob.save(tempdir.name)
+    >>>
+    >>> os.listdir(tempdir.name)
+    ['MyDataBlob-dac936v7mb1ue9phjp6tc3sb']
+
+    Now, let's say that we want to create an :py:class:`AppendDataBlob`
+    that takes in any input :py:class:`DataBlob` or
+    :py:class:`DataFrameDataBlob` and multiplies every number in every tensor by
+    a constant.
+
+    >>> class MyAppendDataBlob(sp.AppendDataBlob):
+    ...
+    ...     @sp.dataclass
+    ...     class Hyperparams(sp.AppendHyperparamsType):
+    ...          coefficient: int
+    ...
+    ...     hyperparams: "MyAppendDataBlob.Hyperparams"
+    ...
+    ...     def __init__(self, *, parent: sp.DataBlob, hyperparams):
+    ...         hyperparams_dict = sp.enforce_dict(hyperparams)
+    ...         if hyperparams_dict["coefficient"] < 1:
+    ...             raise ValueError("Coefficient is too low.")
+    ...         super().__init__(parent=parent, hyperparams=hyperparams_dict)
+    ...
+    ...     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+    ...          return tfdata.map(
+    ...              lambda x, y: (
+    ...                  x * self.hyperparams.coefficient,
+    ...                  y * self.hyperparams.coefficient,
+    ...               )
+    ...          )
+    >>>
+    >>> append = MyAppendDataBlob(parent=datablob, hyperparams=dict(coefficient=3))
+    >>> list(append.training.as_numpy_iterator())
+    [(0, 15), (3, 18), (6, 21), (9, 24), (12, 27)]
+
+    (And now let's clean up the temporary directory that we created earlier.)
+
+    >>> tempdir.cleanup()
+    """  # pylint: disable=line-too-long
+
+    Hyperparams: Type[AppendHyperparamsType] = AppendHyperparamsType
+
+    def __init__(
+        self,
+        *,
+        parent: DataBlob,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+    ):
+        """
+        Args:
+            parent: The :py:class:`DataBlob` to extend.
+
+            hyperparams: Additional hyperparameters to add on top of the
+                existing hyperparameters from the parent :py:class:`DataBlob`.
+        """
+        super().__init__(
+            hyperparams=dict(
+                parent=NestedHyperparamsType(
+                    name=parent.name,
+                    group_name=parent.group_name,
+                    hyperparams=parent.hyperparams,
+                ),
+                **enforce_dict(hyperparams),
+            )
+        )
+        self._parent = parent
+
+    def __getattribute__(self, key: str):
+        """
+        Returns attributes on the wrapped object for any key that isn't present on this object.
+
+        Args:
+            key: The key to look up on this object (and then on the wrapped object).
+        """
+        try:
+            return object.__getattribute__(self, key)
+        except AttributeError:
+            parent = object.__getattribute__(self, "_parent")
+            return parent.__getattribute__(key)
+
+    @property
+    def parent(self) -> DataBlob:
+        """The parent :py:class:`DataBlob`."""
+        return self._parent
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        """
+        Override this to add something to the training, validation,
+        and test :py:class:`tf.data.Dataset` pipelines.
+        """
+        raise IsNotImplemented("AppendDataBlob._wrap_tfdata()")
+
+    def set_training(self) -> tf.data.Dataset:
+        return self._wrap_tfdata(self.parent.set_training())
+
+    @property
+    def training(self) -> tf.data.Dataset:
+        if self._training is None:
+            self._training = self._wrap_tfdata(self.parent.training)
+        return self._training
+
+    def set_validation(self) -> tf.data.Dataset:
+        return self._wrap_tfdata(self.parent.set_validation())
+
+    @property
+    def validation(self) -> tf.data.Dataset:
+        if self._validation is None:
+            self._validation = self._wrap_tfdata(self.parent.validation)
+        return self._validation
+
+    def set_test(self) -> tf.data.Dataset:
+        return self._wrap_tfdata(self.parent.set_test())
+
+    @property
+    def test(self) -> tf.data.Dataset:
+        if self._test is None:
+            self._test = self._wrap_tfdata(self.parent.test)
+        return self._test
 
 
 class _BatchDataBlob(_WrapDataBlob):

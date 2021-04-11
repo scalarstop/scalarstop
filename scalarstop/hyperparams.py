@@ -1,15 +1,20 @@
 """
 Utilities for creating typed Python dataclasses for storing hyperparameters.
 """
-from typing import Any, Dict, Mapping
+from typing import TYPE_CHECKING, Any, Dict, Mapping
 
 from scalarstop._naming import hash_id
-from scalarstop.dataclasses import asdict, dataclass, is_dataclass
+from scalarstop.dataclasses import asdict, is_dataclass
 from scalarstop.exceptions import (
     WrongHyperparamsKeys,
     WrongHyperparamsType,
     YouForgotTheHyperparams,
 )
+
+if TYPE_CHECKING:
+    from dataclasses import dataclass
+else:
+    from scalarstop.dataclasses import dataclass
 
 
 def enforce_dict(hyperparams: Any) -> Dict[Any, Any]:
@@ -54,7 +59,7 @@ def init_hyperparams(*, self, hyperparams, hyperparams_class) -> Any:
     raise YouForgotTheHyperparams(self)
 
 
-@dataclass
+@dataclass  # pylint: disable=used-before-assignment
 class HyperparamsType:
     """
     Parent class for all dataclasses containing hyperparameters.
@@ -64,7 +69,7 @@ class HyperparamsType:
     """
 
 
-@dataclass
+@dataclass  # pylint: disable=used-before-assignment
 class NestedHyperparamsType(HyperparamsType):
     """
     Hyperparams dataclass for encapsulating the hyperparams for another model.
@@ -79,7 +84,7 @@ class NestedHyperparamsType(HyperparamsType):
     hyperparams: HyperparamsType
 
 
-@dataclass
+@dataclass  # pylint: disable=used-before-assignment
 class AppendHyperparamsType(HyperparamsType):
     """
     Hyperparams for "child" datasets or models.
