@@ -108,8 +108,8 @@ class DataBlobWillCauseDirectoryNotEmpty(MyDataBlob):
         :py:class:`DataBlob`.
         """
         if subtype == "training":
-            dataset_directory = os.path.dirname(os.path.dirname(path))
-            this_dataset_path = os.path.join(dataset_directory, self.name)
+            datablobs_directory = os.path.dirname(os.path.dirname(path))
+            this_dataset_path = os.path.join(datablobs_directory, self.name)
             # We have to create a directory, and then put something inside
             # the directory to make sure that we can't copy into the
             # directory without triggering an error.
@@ -131,8 +131,8 @@ class DataBlobWillCauseNotADirectoryError(MyDataBlob):
         way to simulate a race condition.
         """
         if subtype == "training":
-            dataset_directory = os.path.dirname(os.path.dirname(path))
-            this_dataset_path = os.path.join(dataset_directory, self.name)
+            datablobs_directory = os.path.dirname(os.path.dirname(path))
+            this_dataset_path = os.path.join(datablobs_directory, self.name)
             with open(os.path.join(this_dataset_path), "w"):
                 pass
 
@@ -262,31 +262,31 @@ class DataBlobTestCase(unittest.TestCase):
             actual = json.load(fh)
         self.assertEqual(expected, actual)
 
-    def assert_saved_dataframe(self, blob, subtype, this_dataset_directory):
+    def assert_saved_dataframe(self, blob, subtype, this_datablobs_directory):
         """Check that DataFrames have been properly saved to the filesystem."""
         current_dataframe = getattr(blob, subtype + "_dataframe")
         assert_directory(
-            os.path.join(this_dataset_directory, subtype),
+            os.path.join(this_datablobs_directory, subtype),
             ["dataframe.pickle.gz", "tfdata", "element_spec.pickle"],
         )
         # Check that the loaded dataframe is the same.
         loaded_dataframe = pd.read_pickle(
-            os.path.join(this_dataset_directory, subtype, "dataframe.pickle.gz")
+            os.path.join(this_datablobs_directory, subtype, "dataframe.pickle.gz")
         )
         assert_dataframes_are_equal(current_dataframe, loaded_dataframe)
 
-    def assertions_for_save(self, blob, dataset_directory):
+    def assertions_for_save(self, blob, datablobs_directory):
         """Assert that saving a DataBlob works."""
         with self.assertRaises(FileExistsError):
-            blob.save(dataset_directory)
-        self.assertTrue(os.path.exists(os.path.join(dataset_directory, blob.name)))
-        this_dataset_directory = os.path.join(dataset_directory, blob.name)
+            blob.save(datablobs_directory)
+        self.assertTrue(os.path.exists(os.path.join(datablobs_directory, blob.name)))
+        this_datablobs_directory = os.path.join(datablobs_directory, blob.name)
         assert_directory(
-            this_dataset_directory,
+            this_datablobs_directory,
             ["training", "validation", "test", "metadata.json", "metadata.pickle"],
         )
         self.assert_saved_metadata_json(
-            blob, os.path.join(this_dataset_directory, "metadata.json")
+            blob, os.path.join(this_datablobs_directory, "metadata.json")
         )
         for subtype in ["training", "validation", "test"]:
             with self.subTest(subtype):
@@ -294,19 +294,19 @@ class DataBlobTestCase(unittest.TestCase):
                 # serialized too.
                 current_dataframe = getattr(blob, subtype + "_dataframe", None)
                 if current_dataframe is not None:
-                    self.assert_saved_dataframe(blob, subtype, this_dataset_directory)
+                    self.assert_saved_dataframe(blob, subtype, this_datablobs_directory)
                 else:
                     assert_directory(
-                        os.path.join(this_dataset_directory, subtype),
+                        os.path.join(this_datablobs_directory, subtype),
                         ["tfdata", "element_spec.pickle"],
                     )
                 self.assertTrue(
                     os.path.exists(
-                        os.path.join(this_dataset_directory, subtype, "tfdata")
+                        os.path.join(this_datablobs_directory, subtype, "tfdata")
                     )
                 )
 
-    def assertions_for_batch_cache_save(self, blob, sequence, dataset_directory):
+    def assertions_for_batch_cache_save(self, blob, sequence, datablobs_directory):
         """
         Assert that batching, caching, and saving doesn't change
         names or hyperparams.
@@ -321,7 +321,7 @@ class DataBlobTestCase(unittest.TestCase):
         self.assertEqual(blob.name, first_name)
         self.assertEqual(blob.group_name, first_group_name)
         assert_hyperparams_are_equal(blob.hyperparams, first_hyperparams)
-        self.assertions_for_save(blob, dataset_directory)
+        self.assertions_for_save(blob, datablobs_directory)
 
 
 class TestDataBlob(DataBlobTestCase):
@@ -384,19 +384,19 @@ class TestDataBlob(DataBlobTestCase):
 
     def test_save_success(self):
         """Test that we can save a :py:class:`DataBlob`."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
-            blob.save(dataset_directory)
+            blob.save(datablobs_directory)
             with self.assertRaises(FileExistsError):
-                blob.save(dataset_directory)
-            self.assertions_for_save(blob, dataset_directory)
+                blob.save(datablobs_directory)
+            self.assertions_for_save(blob, datablobs_directory)
 
             # Check that serialized element spec is correct.
             for subtype in ["training", "validation", "test"]:
                 tfdata = getattr(blob, subtype)
                 with open(
                     os.path.join(
-                        dataset_directory, blob.name, subtype, "element_spec.pickle"
+                        datablobs_directory, blob.name, subtype, "element_spec.pickle"
                     ),
                     "rb",
                 ) as fh:
@@ -408,10 +408,10 @@ class TestDataBlob(DataBlobTestCase):
         Test that :py:meth:`DataBlob.save` deletespartially-saved
         data if it fails.
         """
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             with self.assertRaises(RuntimeError):
-                DataBlobWillFailtoSave().save(dataset_directory)
-            assert_directory(dataset_directory, [])
+                DataBlobWillFailtoSave().save(datablobs_directory)
+            assert_directory(datablobs_directory, [])
 
     def test_save_dataset_created_during_creation_1(self):
         """
@@ -419,9 +419,9 @@ class TestDataBlob(DataBlobTestCase):
         directory is created after we start (but do not finish)
         saving our :py:class:`DataBlob`.
         """
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             with self.assertRaises(sp.exceptions.FileExistsDuringDataBlobCreation):
-                DataBlobWillCauseDirectoryNotEmpty().save(dataset_directory)
+                DataBlobWillCauseDirectoryNotEmpty().save(datablobs_directory)
 
     def test_save_dataset_created_during_creation_2(self):
         """
@@ -429,17 +429,17 @@ class TestDataBlob(DataBlobTestCase):
         at the location that we wanted to create the directory
         to save our :py:class:`DataBlob`.
         """
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             with self.assertRaises(sp.exceptions.FileExistsDuringDataBlobCreation):
-                DataBlobWillCauseNotADirectoryError().save(dataset_directory)
+                DataBlobWillCauseNotADirectoryError().save(datablobs_directory)
 
-    def test_load_from_directory(self):
+    def test_from_exact_path(self):
         """Test that we can load a :py:class:`DataBlob` from the filesystem."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
-            blob.save(dataset_directory)
-            loaded = sp.DataBlob.load_from_directory(
-                os.path.join(dataset_directory, blob.name)
+            blob.save(datablobs_directory)
+            loaded = sp.DataBlob.from_exact_path(
+                os.path.join(datablobs_directory, blob.name)
             )
             assert_datablob_metadatas_are_equal(blob, loaded)
             assert_datablobs_tfdatas_are_equal(blob, loaded)
@@ -450,7 +450,7 @@ class TestDataBlob(DataBlobTestCase):
         :py:class:`DataBlob` from the filesystem.
         """
         with self.assertRaises(sp.exceptions.DataBlobNotFound):
-            sp.DataBlob.load_from_directory("asdf")
+            sp.DataBlob.from_exact_path("asdf")
 
     def test_load_dataset_not_found_2(self):
         """
@@ -458,13 +458,13 @@ class TestDataBlob(DataBlobTestCase):
         a :py:class:`tf.data.Dataset` and the element spec.
         """
         for deleted_subtype in ["training", "validation", "test"]:
-            with tempfile.TemporaryDirectory() as dataset_directory:
+            with tempfile.TemporaryDirectory() as datablobs_directory:
                 blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1").save(
-                    dataset_directory
+                    datablobs_directory
                 )
-                rmtree(os.path.join(dataset_directory, blob.name, deleted_subtype))
-                loaded = sp.DataBlob.load_from_directory(
-                    os.path.join(dataset_directory, blob.name)
+                rmtree(os.path.join(datablobs_directory, blob.name, deleted_subtype))
+                loaded = sp.DataBlob.from_exact_path(
+                    os.path.join(datablobs_directory, blob.name)
                 )
                 for loaded_subtype in ["training", "validation", "test"]:
                     with self.subTest(
@@ -484,17 +484,17 @@ class TestDataBlob(DataBlobTestCase):
         :py:class:`tf.data.Dataset` but we don't delete the element spec.
         """
         for deleted_subtype in ["training", "validation", "test"]:
-            with tempfile.TemporaryDirectory() as dataset_directory:
+            with tempfile.TemporaryDirectory() as datablobs_directory:
                 blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1").save(
-                    dataset_directory
+                    datablobs_directory
                 )
                 rmtree(
                     os.path.join(
-                        dataset_directory, blob.name, deleted_subtype, "tfdata"
+                        datablobs_directory, blob.name, deleted_subtype, "tfdata"
                     )
                 )
-                loaded = sp.DataBlob.load_from_directory(
-                    os.path.join(dataset_directory, blob.name)
+                loaded = sp.DataBlob.from_exact_path(
+                    os.path.join(datablobs_directory, blob.name)
                 )
                 for loaded_subtype in ["training", "validation", "test"]:
                     with self.subTest(
@@ -510,39 +510,39 @@ class TestDataBlob(DataBlobTestCase):
 
     def test_cache_save_load_permutations(self):
         """Test loading the dataset after cache and or save."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
                 cache=dict(),
-                save=dict(dataset_directory=dataset_directory),
+                save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
                 blob = MyDataBlob(hyperparams=dict(a=idx, b="hi"), secret="s1")
                 with self.subTest(sequence[0]):
                     self.assertions_for_batch_cache_save(
-                        blob, sequence, dataset_directory
+                        blob, sequence, datablobs_directory
                     )
-                    loaded = blob.load_from_directory(
-                        os.path.join(dataset_directory, blob.name)
+                    loaded = blob.from_exact_path(
+                        os.path.join(datablobs_directory, blob.name)
                     )
                     assert_datablob_metadatas_are_equal(blob, loaded)
                     assert_datablobs_tfdatas_are_equal(blob, loaded)
 
     def test_batch_cache_save_load_permutations(self):
         """Test loading the dataset after batch/cache/save."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
                 batch=dict(batch_size=2),
                 cache=dict(),
-                save=dict(dataset_directory=dataset_directory),
+                save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
                 blob = MyDataBlob(hyperparams=dict(a=idx, b="hi"), secret="s1")
                 with self.subTest(sequence[0]):
                     self.assertions_for_batch_cache_save(
-                        blob, sequence, dataset_directory
+                        blob, sequence, datablobs_directory
                     )
-                    loaded = blob.load_from_directory(
-                        os.path.join(dataset_directory, blob.name)
+                    loaded = blob.from_exact_path(
+                        os.path.join(datablobs_directory, blob.name)
                     )
                     assert_datablob_metadatas_are_equal(blob, loaded)
 
@@ -680,20 +680,20 @@ class TestDataFrameDataBlob(DataBlobTestCase):
 
     def test_save(self):
         """Test that we can save a DataFrameDataBlob."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataFrameDataBlob()
-            blob.save(dataset_directory)
+            blob.save(datablobs_directory)
 
-    def test_load_from_directory(self):
+    def test_from_exact_path(self):
         """
         Test that we can load a :py:class:`DataFrameDataBlob`
         from the filesystem.
         """
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataFrameDataBlob()
-            blob.save(dataset_directory)
-            loaded = MyDataFrameDataBlob.load_from_directory(
-                os.path.join(dataset_directory, blob.name)
+            blob.save(datablobs_directory)
+            loaded = MyDataFrameDataBlob.from_exact_path(
+                os.path.join(datablobs_directory, blob.name)
             )
             assert_datablob_metadatas_are_equal(blob, loaded)
             assert_datablobs_tfdatas_are_equal(blob, loaded)
@@ -701,19 +701,19 @@ class TestDataFrameDataBlob(DataBlobTestCase):
 
     def test_cache_save_load_permutations(self):
         """Test loading the dataset after cache and or save."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
                 cache=dict(),
-                save=dict(dataset_directory=dataset_directory),
+                save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
                 blob = MyDataFrameDataBlob(hyperparams=dict(a=idx))
                 with self.subTest(sequence[0]):
                     self.assertions_for_batch_cache_save(
-                        blob, sequence, dataset_directory
+                        blob, sequence, datablobs_directory
                     )
-                    loaded = blob.load_from_directory(
-                        os.path.join(dataset_directory, blob.name)
+                    loaded = blob.from_exact_path(
+                        os.path.join(datablobs_directory, blob.name)
                     )
                     assert_datablob_metadatas_are_equal(blob, loaded)
                     assert_datablobs_tfdatas_are_equal(blob, loaded)
@@ -721,20 +721,20 @@ class TestDataFrameDataBlob(DataBlobTestCase):
 
     def test_batch_cache_save_load_permutations(self):
         """Test loading the dataset after batch/cache/save."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
                 batch=dict(batch_size=2),
                 cache=dict(),
-                save=dict(dataset_directory=dataset_directory),
+                save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
                 blob = MyDataFrameDataBlob(hyperparams=dict(a=idx))
                 with self.subTest(sequence[0]):
                     self.assertions_for_batch_cache_save(
-                        blob, sequence, dataset_directory
+                        blob, sequence, datablobs_directory
                     )
-                    loaded = blob.load_from_directory(
-                        os.path.join(dataset_directory, blob.name)
+                    loaded = blob.from_exact_path(
+                        os.path.join(datablobs_directory, blob.name)
                     )
                     assert_datablob_metadatas_are_equal(blob, loaded)
                     assert_datablob_dataframes_are_equal(blob, loaded)
@@ -866,9 +866,9 @@ class TestAppendDataBlob(unittest.TestCase):
                 self.assertEqual(lst[1].shape, (2,))
                 self.assertEqual(lst[2].shape, (1,))
 
-    def test_save_and_load_from_directory(self):
+    def test_save_and_from_exact_path(self):
         """Test that we can save an AppendDatablob and load it back."""
-        with tempfile.TemporaryDirectory() as dataset_directory:
+        with tempfile.TemporaryDirectory() as datablobs_directory:
             coefficient = 10
             parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
             append = MyAppendDataBlob(
@@ -876,9 +876,9 @@ class TestAppendDataBlob(unittest.TestCase):
                 hyperparams=dict(coefficient=coefficient),
                 secret2="secret2",
             )
-            append.save(dataset_directory)
-            append_loaded = MyAppendDataBlob.load_from_directory(
-                os.path.join(dataset_directory, append.name)
+            append.save(datablobs_directory)
+            append_loaded = MyAppendDataBlob.from_exact_path(
+                os.path.join(datablobs_directory, append.name)
             )
             assert_datablob_metadatas_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)

@@ -69,7 +69,7 @@ class ModelTemplate:
         self, *, hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None
     ):
         self.hyperparams = init_hyperparams(
-            self=self,
+            class_name=self.__class__.__name__,
             hyperparams=hyperparams,
             hyperparams_class=self.Hyperparams,
         )
@@ -87,7 +87,8 @@ class ModelTemplate:
         will have different names.
 
         However, if you use additional parameters to your
-        :py:class:`ModelTemplate` 's ``__init__()`` method that are
+        :py:class:`~scalarstop.model_template.ModelTemplate` 's
+        ``__init__()`` method that are
         *not* hyperparameters--such as paths on your filesystem--then
         you should be sure that changes in those values do *not*
         change your :py:class:`ModelTemplate` name.

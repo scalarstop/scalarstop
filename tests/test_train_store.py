@@ -35,7 +35,7 @@ class TrainStoreUnits:  # pylint: disable=no-member
 
         self.datablob = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
         self.model_template = MyModelTemplate(hyperparams=dict(layer_1_units=2))
-        self.model = sp.KerasModel.from_model_template(
+        self.model = sp.KerasModel(
             datablob=self.datablob,
             model_template=self.model_template,
         )
@@ -267,19 +267,19 @@ class TrainStoreUnits:  # pylint: disable=no-member
         mt3 = MyModelTemplate(hyperparams=dict(layer_1_units=4))
         self.train_store.insert_model_template(mt3)
 
-        model1 = sp.KerasModel.from_model_template(
+        model1 = sp.KerasModel(
             datablob=self.datablob,
             model_template=mt1,
         )
         self.train_store.insert_model(model1)
 
-        model2 = sp.KerasModel.from_model_template(
+        model2 = sp.KerasModel(
             datablob=self.datablob,
             model_template=mt2,
         )
         self.train_store.insert_model(model2)
 
-        model3 = sp.KerasModel.from_model_template(
+        model3 = sp.KerasModel(
             datablob=self.datablob,
             model_template=mt3,
         )
@@ -328,7 +328,7 @@ class TrainStoreUnits:  # pylint: disable=no-member
         random.shuffle(model_templates)
         for db in datablobs:
             for mt in model_templates:
-                model = sp.KerasModel.from_model_template(
+                model = sp.KerasModel(
                     datablob=db,
                     model_template=mt,
                 )

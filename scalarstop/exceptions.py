@@ -16,10 +16,10 @@ class ScalarStopException(Exception):
 class YouForgotTheHyperparams(ValueError, ScalarStopException):
     """Raised when the user creates a class, but forgets to add a nested Hyperparams class."""
 
-    def __init__(self, obj: Any):
+    def __init__(self, class_name: str):
         super().__init__(
             "Please make sure to define a dataclass containing "
-            f"hyperparameters at `{obj.__class__.__name__}.Hyperparams`. "
+            f"hyperparameters at `{class_name}.Hyperparams`. "
             "Your dataclass should subclass `sp.HyperparamsType` "
             "and is decorated with a `@sp.dataclass` decorator."
         )
@@ -28,12 +28,12 @@ class YouForgotTheHyperparams(ValueError, ScalarStopException):
 class WrongHyperparamsType(TypeError, ScalarStopException):
     """Raised when the user passes an object with the wrong type as hyperparams."""
 
-    def __init__(self, *, hyperparams: Any, obj: Any):
+    def __init__(self, *, hyperparams: Any, class_name: str):
         super().__init__(
             f"You passed an object with the type {type(hyperparams)} as hyperparams. "
             "Check with the surrounding class. You should either pass a dictionary "
             "or other mapping-like object or directly pass "
-            f"a {obj.__class.__name__}.Hyperparams object."
+            f"a {class_name}.Hyperparams object."
         )
 
 
@@ -55,16 +55,14 @@ class DataBlobNotFound(FileNotFoundError, ScalarStopException):
     from the filesystem.
     """
 
-    def __init__(self, this_dataset_directory: str):
+    def __init__(self, path: str):
         """
         Args:
-            this_dataset_directory: The directory that we went
+            path: The directory that we went
                 looking for the :py:class:`DataBlob` when we
                 were not able to find it.
         """
-        super().__init__(
-            "Could not load a DataBlob from the filesystem at " + this_dataset_directory
-        )
+        super().__init__("Could not load a DataBlob from the filesystem at " + path)
 
 
 class ModelNotFoundError(FileNotFoundError, ScalarStopException):

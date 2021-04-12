@@ -39,9 +39,7 @@ class TestModel(unittest.TestCase):
         with self.assertRaises(sp.exceptions.IsNotImplemented):
             sp.Model.load("/")
 
-        model = sp.Model.from_model_template(
-            datablob=datablob, model_template=model_template
-        )
+        model = sp.Model(datablob=datablob, model_template=model_template)
 
         with self.assertRaises(sp.exceptions.IsNotImplemented):
             model.history  # pylint: disable=pointless-statement
@@ -70,7 +68,7 @@ class TestKerasModel(unittest.TestCase):
         self.models_directory = self.temp_dir_context.name
         self.datablob = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
         self.model_template = MyModelTemplate(hyperparams=dict(layer_1_units=2))
-        self.keras_model = sp.KerasModel.from_model_template(
+        self.keras_model = sp.KerasModel(
             datablob=self.datablob,
             model_template=self.model_template,
         )
@@ -193,18 +191,18 @@ class TestKerasModel(unittest.TestCase):
             return_value=history, model=self.keras_model, expected_epochs=2
         )
 
-    def test_from_filesystem_or_model_template(self):
+    def test_from_filesystem_or_new(self):
         """
         Test that we can load models from the filesystem when it exists,
         and that we fallback to creating a new model.
         """
         # Create two brand new models and assert that they've been untrained.
-        model1 = sp.KerasModel.from_filesystem_or_model_template(
+        model1 = sp.KerasModel.from_filesystem_or_new(
             datablob=self.datablob,
             model_template=self.model_template,
             models_directory=self.models_directory,
         )
-        model2 = sp.KerasModel.from_filesystem_or_model_template(
+        model2 = sp.KerasModel.from_filesystem_or_new(
             datablob=self.datablob,
             model_template=self.model_template,
             models_directory=self.models_directory,
@@ -226,7 +224,7 @@ class TestKerasModel(unittest.TestCase):
         assert_model_after_fit(return_value=dict(), model=model2, expected_epochs=0)
 
         # Create a new model. This time it should be loaded from the filesystem.
-        model3 = sp.KerasModel.from_filesystem_or_model_template(
+        model3 = sp.KerasModel.from_filesystem_or_new(
             datablob=self.datablob,
             model_template=self.model_template,
             models_directory=self.models_directory,
@@ -345,7 +343,7 @@ class TestKerasModel(unittest.TestCase):
                 # Create and fit the model.
                 # When we pass the train store, it will save the datablob,
                 # model, and model template.
-                model = sp.KerasModel.from_model_template(
+                model = sp.KerasModel(
                     datablob=self.datablob,
                     model_template=self.model_template,
                 )

@@ -34,7 +34,7 @@ def hash_hyperparams(hyperparams: Any) -> str:
     return hash_id(asdict(hyperparams))
 
 
-def init_hyperparams(*, self, hyperparams, hyperparams_class) -> Any:
+def init_hyperparams(*, class_name: str, hyperparams, hyperparams_class) -> Any:
     """
     Construct a hyperparams object from either a mapping or another hyperparams object.
     """
@@ -55,8 +55,8 @@ def init_hyperparams(*, self, hyperparams, hyperparams_class) -> Any:
                 raise WrongHyperparamsKeys(
                     hyperparams=hyperparams, hyperparams_class=hyperparams_class
                 ) from exc
-        raise WrongHyperparamsType(hyperparams=hyperparams, obj=self)
-    raise YouForgotTheHyperparams(self)
+        raise WrongHyperparamsType(hyperparams=hyperparams, class_name=class_name)
+    raise YouForgotTheHyperparams(class_name=class_name)
 
 
 @dataclass  # pylint: disable=used-before-assignment

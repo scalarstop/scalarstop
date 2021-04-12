@@ -193,7 +193,7 @@ class DataBlob:
     * **Saving/loading to/from the filesystem.** :py:meth:`DataBlob.save`
       saves the training, validation, and test
       sets to a path on the filesystem. This can be loaded back with
-      the classmethod :py:meth:`DataBlob.load_from_directory`.
+      the classmethod :py:meth:`DataBlob.from_exact_path`.
 
     >>> import os
     >>> import tempfile
@@ -204,9 +204,20 @@ class DataBlob:
     >>> os.listdir(tempdir.name)
     ['MyDataBlob-bn5hpc7ueo2uz7as1747tetn']
 
-    >>> my_datablob_path = os.path.join(tempdir.name, datablob.name)
-    >>> loaded_datablob = MyDataBlob.load_from_directory(my_datablob_path)
+    >>> path = os.path.join(tempdir.name, datablob.name)
+    >>> loaded_datablob = MyDataBlob.from_exact_path(path)
     >>> loaded_datablob
+    <sp.DataBlob MyDataBlob-bn5hpc7ueo2uz7as1747tetn>
+
+    Alternatively, if you have the hyperparameters of the
+    :py:class:`DataBlob` but not the name, you can use the
+    classmethod :py:meth:`DataBlob.from_filesystem`.
+
+    >>> loaded_datablob_2 = MyDataBlob.from_filesystem(
+    ...    hyperparams=dict(cols=3),
+    ...    datablobs_directory=tempdir.name,
+    ... )
+    >>> loaded_datablob_2
     <sp.DataBlob MyDataBlob-bn5hpc7ueo2uz7as1747tetn>
 
     (and now let's clean up the temporary directory from above)
@@ -225,29 +236,99 @@ class DataBlob:
     _group_name: Optional[str] = None
 
     def __init__(
-        self, *, hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None
+        self,  # pylint: disable=unused-argument
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        **kwargs,
     ):
         self.hyperparams = init_hyperparams(
-            self=self,
+            class_name=self.__class__.__name__,
             hyperparams=hyperparams,
             hyperparams_class=self.Hyperparams,
         )
 
-    @staticmethod
-    def load_from_directory(this_dataset_directory) -> "DataBlob":
-        """Load a :py:class:`DataBlob` from a directory on the filesystem."""
-        return _LoadDataBlob.load_from_directory(
-            this_dataset_directory=this_dataset_directory
+    @classmethod
+    def from_filesystem(
+        cls,
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        datablobs_directory: str,
+    ):
+        """
+        Load a :py:class:`DataBlob` from the filesystem, calculating the
+        filename from the hyperparameters.
+
+        Args:
+            hyperparams: The hyperparameters of the model that we want to load.
+
+            datablobs_directory: The parent directory of all of your saved
+                :py:class:`DataBlob` s. The exact filename is calculated
+                from the class name and hyperparams.
+        """
+        the_hyperparams = init_hyperparams(
+            class_name=cls.__name__,
+            hyperparams=hyperparams,
+            hyperparams_class=cls.Hyperparams,
         )
+        group_name = cls._make_group_name()
+        name = cls._make_name(group_name=group_name, hyperparams=the_hyperparams)
+        path = os.path.join(datablobs_directory, name)
+        return cls.from_exact_path(path)
+
+    @classmethod
+    def from_filesystem_or_new(
+        cls,
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        datablobs_directory: str,
+        **kwargs,
+    ):
+        """Load a :py:class:`DataBlob` from the fielsystem, calculating the
+        filename from the hyperparameters. Create a new :py:class:`DataBlob`
+        if we cannot find a saved one on the filesystem.
+
+        Args:
+            hyperparams: The hyperparameters of the model that we want to load.
+
+            datablobs_directory: The parent directory of all of your saved
+                :py:class:`DataBlob` s. The exact filename is calculated
+                from the class name and hyperparams.
+
+            **kwargs: Other keyword arguments that you need to pass to
+                your ``__init__()``.
+        """
+        try:
+            return cls.from_filesystem(
+                hyperparams=hyperparams, datablobs_directory=datablobs_directory
+            )
+        except DataBlobNotFound:
+            return cls(hyperparams=hyperparams, **kwargs)
+
+    @staticmethod
+    def from_exact_path(path: str) -> "DataBlob":
+        """Load a :py:class:`DataBlob` from a directory on the filesystem."""
+        return _LoadDataBlob.from_exact_path(path=path)
 
     def __repr__(self) -> str:
         return f"<sp.DataBlob {self.name}>"
+
+    @staticmethod
+    def _make_name(*, group_name: str, hyperparams) -> str:
+        """Compute what this :py:class:`DataBlob` 's name should be."""
+        return "-".join((group_name, hash_hyperparams(hyperparams)))
+
+    @classmethod
+    def _make_group_name(cls) -> str:
+        """Compute what this :py:class:`DataBlob` 's group name should be."""
+        return cls.__name__
 
     @property
     def name(self) -> str:
         """The name of this specific dataset."""
         if self._name is None:
-            self._name = "-".join((self.group_name, hash_hyperparams(self.hyperparams)))
+            self._name = self._make_name(
+                group_name=self.group_name, hyperparams=self.hyperparams
+            )
         return self._name
 
     @property
@@ -261,7 +342,7 @@ class DataBlob:
         share the same code but have different hyperparameters.
         """
         if self._group_name is None:
-            self._group_name = self.__class__.__name__
+            self._group_name = self._make_group_name()
         return self._group_name
 
     def set_training(self) -> tf.data.Dataset:
@@ -316,20 +397,20 @@ class DataBlob:
         """
         return None
 
-    def save(self, dataset_directory: str) -> "DataBlob":
+    def save(self, datablobs_directory: str) -> "DataBlob":
         """
         Save this :py:class:`DataBlob` to disk.
 
         Args:
-            dataset_directory: The directory where you plan on storing all of your
+            datablobs_directory: The directory where you plan on storing all of your
                 DataBlobs. This method will save this :py:class:`DataBlob` in a subdirectory
-                of ``dataset_directory`` with same name as :py:attr:`DataBlob.name`.
+                of ``datablobs_directory`` with same name as :py:attr:`DataBlob.name`.
 
         Returns:
             Return ``self``, enabling you to place this call in a chain.
         """
         # Begin writing our hyperparameters, dataframes, tfdata, and element spec.
-        final_datablob_path = os.path.join(dataset_directory, self.name)
+        final_datablob_path = os.path.join(datablobs_directory, self.name)
         if os.path.exists(final_datablob_path):
             raise FileExists(
                 f"File or directory already exists at path {final_datablob_path}"
@@ -499,13 +580,11 @@ class DataFrameDataBlob(DataBlob):
     _test_dataframe: Optional[pd.DataFrame] = None
 
     @staticmethod
-    def load_from_directory(
-        this_dataset_directory: str,
+    def from_exact_path(
+        path: str,
     ) -> Union[DataBlob, "DataFrameDataBlob"]:
         """Load a :py:class:`DataFrameDataBlob` from a directory on the filesystem."""
-        loaded = _LoadDataFrameDataBlob.load_from_directory(
-            this_dataset_directory=this_dataset_directory
-        )
+        loaded = _LoadDataFrameDataBlob.from_exact_path(path=path)
         return loaded
 
     def __repr__(self) -> str:
@@ -916,32 +995,30 @@ class _LoadDataBlob(DataBlob):
     def __init__(
         self,
         *,
-        this_dataset_directory: str,
+        path: str,
         name: str,
         group_name: str,
         hyperparams: HyperparamsType,
     ):
         self.Hyperparams = hyperparams.__class__
         super().__init__(hyperparams=hyperparams)
-        self._this_dataset_directory = this_dataset_directory
+        self._path = path
         self._name = name
         self._group_name = group_name
 
     @classmethod
-    def load_from_directory(
-        cls, this_dataset_directory: str
-    ) -> Union[DataBlob, DataFrameDataBlob]:
-        metadata_path = os.path.join(this_dataset_directory, _METADATA_PICKLE_FILENAME)
+    def from_exact_path(cls, path: str) -> Union[DataBlob, DataFrameDataBlob]:
+        metadata_path = os.path.join(path, _METADATA_PICKLE_FILENAME)
         try:
             with open(metadata_path, "rb") as fh:
                 metadata = scalarstop.pickle.load(fh)
         except FileNotFoundError as exc:
-            raise DataBlobNotFound(this_dataset_directory) from exc
+            raise DataBlobNotFound(path) from exc
         name = metadata["name"]
         group_name = metadata["group_name"]
         hyperparams = metadata["hyperparams"]
         return cls(
-            this_dataset_directory=this_dataset_directory,
+            path=path,
             name=name,
             group_name=group_name,
             hyperparams=hyperparams,
@@ -950,11 +1027,9 @@ class _LoadDataBlob(DataBlob):
     def _load_tfdata(self, subtype: str) -> tf.data.Dataset:
         """Load one of the :py:class:`tf.data.Dataset` s that we have saved."""
         try:
-            return _load_tfdata_dataset(
-                os.path.join(self._this_dataset_directory, subtype)
-            )
+            return _load_tfdata_dataset(os.path.join(self._path, subtype))
         except ElementSpecNotFound as exc:
-            raise TensorFlowDatasetNotFound(self._this_dataset_directory) from exc
+            raise TensorFlowDatasetNotFound(self._path) from exc
 
     def set_training(self) -> tf.data.Dataset:
         """An instance of the training set tf.data."""
@@ -973,9 +1048,7 @@ class _LoadDataFrameDataBlob(_LoadDataBlob, DataFrameDataBlob):
     """Loads a saved :py:class:`DataFrameDataBlob` from the filesystem."""
 
     def _set_subtype_dataframe(self, subtype: str) -> pd.DataFrame:
-        return pd.read_pickle(
-            os.path.join(self._this_dataset_directory, subtype, _DATAFRAME_FILENAME)
-        )
+        return pd.read_pickle(os.path.join(self._path, subtype, _DATAFRAME_FILENAME))
 
     def set_dataframe(self) -> pd.DataFrame:
         return pd.concat(

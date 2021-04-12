@@ -101,7 +101,7 @@ load that model instead of starting from scratch.
 >>> import tempfile
 >>> tempdir = tempfile.TemporaryDirectory()
 >>>
->>> model = sp.KerasModel.from_filesystem_or_model_template(
+>>> model = sp.KerasModel.from_filesystem_or_new(
 ...    datablob=datablob,
 ...    model_template=model_template,
 ...    models_directory=tempdir.name,
@@ -191,30 +191,7 @@ class Model:
         raise IsNotImplemented(f"{cls.__name__}.from_filesystem()")
 
     @classmethod
-    def from_model_template(
-        cls, *, datablob: DataBlob, model_template: ModelTemplate
-    ) -> "Model":
-        """
-        Create a new :py:class:`Model` from a :py:class:`~scalarstop.ModelTemplate`.
-
-        Args:
-            datablob: The :py:class:`~scalarstop.models.DataBlob`
-                that we will use to train the model.
-
-            model_template: The :py:class:`~scalarstop.ModelTemplate`
-                that we will use to create the model.
-
-        Returns:
-            A brand-new :py:class:`Model` that has not yet been trained.
-        """
-        return cls(
-            datablob=datablob,
-            model_template=model_template,
-            model=model_template.new_model(),
-        )
-
-    @classmethod
-    def from_filesystem_or_model_template(
+    def from_filesystem_or_new(
         cls, *, datablob: DataBlob, model_template: ModelTemplate, models_directory: str
     ) -> "Model":
         """
@@ -242,16 +219,21 @@ class Model:
                 models_directory=models_directory,
             )
         except ModelNotFoundError:
-            return cls.from_model_template(
-                datablob=datablob, model_template=model_template
-            )
+            return cls(datablob=datablob, model_template=model_template)
 
     def __init__(
-        self, *, datablob: DataBlob, model_template: ModelTemplate, model: Any
+        self,
+        *,
+        datablob: DataBlob,
+        model_template: ModelTemplate,
+        model: Optional[Any] = None,
     ):
         self._datablob = datablob
         self._model_template = model_template
-        self._model = model
+        if model is None:
+            self._model = self._model_template.new_model()
+        else:
+            self._model = model
         self._name = self._make_name(
             datablob_name=self._datablob.name,
             model_template_name=self._model_template.name,
@@ -459,7 +441,7 @@ class KerasModel(Model):
         *,
         datablob: DataBlob,
         model_template: ModelTemplate,
-        model: Any,
+        model: Optional[Any] = None,
         history: Optional[_KERAS_HISTORY_TYPE] = None,
     ):
         super().__init__(datablob=datablob, model_template=model_template, model=model)
