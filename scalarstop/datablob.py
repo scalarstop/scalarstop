@@ -397,7 +397,9 @@ class DataBlob:
         """
         return None
 
-    def save(self, datablobs_directory: str) -> "DataBlob":
+    def save(
+        self, datablobs_directory: str, *, ignore_existing: bool = False
+    ) -> "DataBlob":
         """
         Save this :py:class:`DataBlob` to disk.
 
@@ -406,12 +408,18 @@ class DataBlob:
                 DataBlobs. This method will save this :py:class:`DataBlob` in a subdirectory
                 of ``datablobs_directory`` with same name as :py:attr:`DataBlob.name`.
 
+            ignore_existing: Set this to ``True`` to ignore if
+                there is already a :py:class:`DataBlob` at the given
+                path.
+
         Returns:
             Return ``self``, enabling you to place this call in a chain.
         """
         # Begin writing our hyperparameters, dataframes, tfdata, and element spec.
         final_datablob_path = os.path.join(datablobs_directory, self.name)
         if os.path.exists(final_datablob_path):
+            if ignore_existing:
+                return self
             raise FileExists(
                 f"File or directory already exists at path {final_datablob_path}"
             )

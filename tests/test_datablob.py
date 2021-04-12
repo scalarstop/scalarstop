@@ -387,8 +387,15 @@ class TestDataBlob(DataBlobTestCase):
         with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
             blob.save(datablobs_directory)
-            with self.assertRaises(FileExistsError):
+
+            # Test that we raise an exception when the datablob already exists.
+            with self.assertRaises(sp.exceptions.FileExists):
                 blob.save(datablobs_directory)
+
+            # Test that we can suppress the exception that we just raised
+            blob.save(datablobs_directory, ignore_existing=True)
+
+            # Test that the saved data looks right.
             self.assertions_for_save(blob, datablobs_directory)
 
             # Check that serialized element spec is correct.
