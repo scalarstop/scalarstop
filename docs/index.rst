@@ -1,6 +1,16 @@
-
 Organize your machine learning experiments with ScalarStop
 ==========================================================
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+
+    Home <self>
+    API Documentation <autoapi/scalarstop/index>
+    ScalarStop on GitHub <https://github.com/scalarstop/scalarstop>
+    Technology at Neocrym <https://technology.neocrym.com/>
+    Neocrym.com <https://neocrym.com>
+    Privacy Policy <https://www.neocrym.com/privacy/>
 
 ScalarStop helps you train machine learning models by:
 

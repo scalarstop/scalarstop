@@ -94,4 +94,8 @@ The docker-compose.yml file in the root of this directory can set up a PostgreSQ
 
 Measuring test coverage
 """""""""""""""""""""""
-You can run ``make test-with-coverage`` to collect Python line and branch coverage information. Afterwards, run ``make coverage-html`` to generate an HTML report of unit test coverage. You can view the report in a web browser at the path htmlcov/index.html .
+You can run ``make test-with-coverage`` to collect Python line and branch coverage information. Afterwards, run ``make coverage-html`` to generate an HTML report of unit test coverage. You can view the report in a web browser at the path ``htmlcov/index.html``.
+
+Credits
+-------
+ScalarStop's documentation is built with `Sphinx <https://www.sphinx-doc.org/>`_ using `@pradyunsg <https://pradyunsg.me>`_'s `Furo <https://github.com/pradyunsg/furo>`_ theme and is hosted by `Read the Docs <https://readthedocs.org/>`_.

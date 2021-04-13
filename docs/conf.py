@@ -82,6 +82,14 @@ exclude_patterns = ["_build", "_templates" "Thumbs.db", ".DS_Store"]
 # a list of builtin themes.
 #
 html_theme = "furo"
+html_show_sphinx = False
+html_copy_source = False
+html_show_source = False
+html_theme_options = dict(
+    light_logo="1x/logo-color-black-on-transparent-1x.png",
+    dark_logo="1x/logo-color-white-on-transparent-1x.png",
+    sidebar_hide_name=True,
+)
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
