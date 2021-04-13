@@ -1,3 +1,5 @@
+.. image:: https://www.scalarstop.com/en/latest/_static/1x/logo-color-black-on-white-1x.png
+
 Organize your machine learning experiments with ScalarStop
 ==========================================================
 
