@@ -13,7 +13,7 @@
 
 .. raw:: html
 
-    <div class="scalarstop-hide-on-mobile"><img src="/_static/images/code-screenshot.svg" class="scalarstop-hero-img" /></div>
+    <div class="scalarstop-hide-on-mobile"><img src="_static/images/code-screenshot.svg" class="scalarstop-hero-img" /></div>
 
     <h1 class="scalarstop-header centered">Keep track of your machine learning experiments.</h1>
 
