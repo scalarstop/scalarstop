@@ -1,9 +1,29 @@
 .. image:: https://www.scalarstop.com/en/latest/_static/1x/logo-color-black-on-white-1x.png
 
-Organize your machine learning experiments with ScalarStop
-==========================================================
+Keep track of your machine learning experiments with ScalarStop.
+================================================================
 
-ScalarStop is a framework written in Python that helps you keep track of datasets, models, hyperparameters, and training metrics in machine learning experiments.
+ScalarStop is a Python framework for reproducible machine learning research.
+
+It was written and open-sourced at `Neocrym <https://www.neocrym.com>`_, where it is used to train thousands of models every week.
+
+ScalarStop can help you:
+
+* organize datasets and models with *content-addressable* names.
+* save/load datasets and models to/from the filesystem.
+* record hyperparameters and metrics to a relational database.
+
+System requirements
+-------------------
+ScalarStop is a Python package that requires Python 3.8 or newer.
+
+Currently, ScalarStop only supports tracking
+`tf.data.Dataset <https://www.tensorflow.org/api_docs/python/tf/data/Dataset>`_
+datasets and `tf.keras.Model <https://www.tensorflow.org/api_docs/python/tf/keras/Model>`_
+models. As such, ScalarStop requires TensorFlow 2.3.0 or newer.
+
+We encourage anybody that would like to add support for other
+machine learning frameworks to ScalarStop. :)
 
 Installation
 ------------
@@ -13,13 +33,23 @@ You can install by running the command:
 
 .. code:: bash
 
-    pip3 install scalarstop
+    python3 -m pip install scalarstop
 
+If you would like to make changes to ScalarStop, you can `clone the repository <https://github.com/scalarstop/scalarstop>`_
+from GitHub.
+
+.. code:: bash
+
+    git clone https://github.com/scalarstop/scalarstop.git
+    cd scalarstop
+    python3 -m pip install .
 
 Usage
 -----
 
-Read the `ScalarStop Tutorial <https://github.com/scalarstop/scalarstop/blob/main/notebooks/tutorial.ipynb>`_ to learn the core concepts behind ScalarStop and how to structure your datasets and models. Afterwards, you might want to dig deeper into the `ScalarStop Documentation <https://docs.scalarstop.com>`_. In general, a typical ScalarStop workflow involves four steps:
+Read the `ScalarStop Tutorial <https://github.com/scalarstop/scalarstop/blob/main/notebooks/tutorial.ipynb>`_ to learn the core concepts behind ScalarStop and how to structure your datasets and models.
+
+Afterwards, you might want to dig deeper into the `ScalarStop Documentation <https://docs.scalarstop.com>`_. In general, a typical ScalarStop workflow involves four steps:
 
 1. Organize your datasets with `scalarstop.datablob <https://www.scalarstop.com/en/latest/autoapi/scalarstop/datablob/#module-scalarstop.datablob>`_.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

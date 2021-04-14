@@ -90,6 +90,7 @@ html_theme_options = dict(
     dark_logo="1x/logo-color-white-on-transparent-1x.png",
     sidebar_hide_name=True,
 )
+html_css_files = ["css/custom.css"]
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

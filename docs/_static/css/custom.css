@@ -1,0 +1,42 @@
+@media only screen and (max-width: 52em) {
+    .scalarstop-hide-on-mobile {
+        display: none;
+    }
+}
+
+h1, h2, h3 {
+    font-weight: 700;
+}
+
+.scalarstop-hero-img {
+    display: block;
+    margin: 0 auto 0 auto;
+    width: 35em;
+    height: auto;
+}
+
+h1.scalarstop-header {
+    font-size: 3rem;
+    text-align: center;
+}
+
+h2.scalarstop-header {
+    font-size: 2rem;
+    margin-top: 5rem;
+}
+
+h3.scalarstop-header {
+    font-size: 1.25rem;
+    margin-top: 3rem;
+}
+
+.scalarstop-bigbullet {
+    margin-left: 1rem;
+}
+
+.scalarstop-bigbullet:before {
+    content: '»  ';
+    position: relative;
+    bottom: .1em;
+    color: #368ce2;
+}
