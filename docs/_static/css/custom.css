@@ -1,13 +1,18 @@
+/* Hide things when the screen isn't very wide. */
 @media only screen and (max-width: 52em) {
     .scalarstop-hide-on-mobile {
         display: none;
     }
 }
 
+
+/* Make a bold statement. */
 h1, h2, h3 {
     font-weight: 700;
 }
 
+
+/* Set up headers on the home page. */
 .scalarstop-hero-img {
     display: block;
     margin: 0 auto 0 auto;
@@ -17,7 +22,6 @@ h1, h2, h3 {
 
 h1.scalarstop-header {
     font-size: 3rem;
-    text-align: center;
 }
 
 h2.scalarstop-header {
@@ -39,4 +43,43 @@ h3.scalarstop-header {
     position: relative;
     bottom: .1em;
     color: #368ce2;
+}
+
+
+/* Remove unnecessary styling on Sphinx reference links to code. */
+code.literal {
+    font-size: 90% !important;
+    font-weight: bold !important;
+    background: none !important;
+}
+
+a.reference {
+    text-decoration: none !important;
+}
+
+
+/* Space our classes and methods in our documentation. */
+dl.py.class {
+    margin-bottom: 6rem;
+}
+
+dl.py.method {
+    margin-bottom: 4rem;
+}
+
+dl.py.attribute {
+    margin-bottom: 2rem;
+}
+
+
+/* Fix some issues with the Pygments fruity theme in dark mode. */
+.highlight .s2 {
+    background: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+    .highlight .go {
+        color: #888888 !important;
+        background: none !important;
+    }
 }

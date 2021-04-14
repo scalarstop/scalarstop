@@ -15,9 +15,9 @@
 
     <div class="scalarstop-hide-on-mobile"><img src="/_static/images/code-screenshot.svg" class="scalarstop-hero-img" /></div>
 
-    <h1 class="scalarstop-header">Keep track of your machine learning experiments.</h1>
+    <h1 class="scalarstop-header centered">Keep track of your machine learning experiments.</h1>
 
-    <h2 class="scalarstop-header">ScalarStop is an open-source framework for reproducible machine learning research.</h2>
+    <h2 class="scalarstop-header centered">ScalarStop is an open-source framework for reproducible machine learning research.</h2>
 
     <h3 class="scalarstop-header">ScalarStop was written and open-sourced at <a href="https://www.neocrym.com">Neocrym</a>, where it is used to train thousands of models every week.
 
