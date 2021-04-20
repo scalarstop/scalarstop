@@ -138,6 +138,22 @@ def _sqlite_json_enabled() -> bool:
     return True
 
 
+def _flatten_hyperparam_results(results) -> List[Dict[str, str]]:
+    results_dicts = []
+    for row in results:
+        row_dict = dict(row)
+        dbh = row_dict.pop("datablob_hyperparams")
+        mth = row_dict.pop("model_template_hyperparams")
+        results_dicts.append(
+            dict(
+                **row_dict,
+                **{f"dbh__{key}": val for key, val in dbh.items()},
+                **{f"mth__{key}": val for key, val in mth.items()},
+            )
+        )
+    return results_dicts
+
+
 class _TrainStoreTables:
     """Manages our :py:class:`sqlalchemy.schema.Table` objects."""
 
@@ -873,7 +889,7 @@ class TrainStore:
         stmt = stmt.order_by(self.table.model.c.model_last_modified)
         return stmt
 
-    def _query_model_by_epoch_stmt(  # pylint: disable=too-many-branches
+    def _query_model_by_epoch_stmt(
         self,
         *,
         metric_name: Optional[str] = None,
@@ -883,6 +899,7 @@ class TrainStore:
         model_template_name: Optional[Union[str, Sequence[str]]] = None,
         model_template_group_name: Optional[Union[str, Sequence[str]]] = None,
         limit: Optional[int] = None,
+        return_other_metrics: bool = True,
     ):
         where_conditions = []
 
@@ -918,7 +935,6 @@ class TrainStore:
             self.table.model.c.model_name,
             self.table.model.c.model_class_name,
             self.table.model.c.model_last_modified,
-            self.table.model_epoch.c.model_epoch_metrics,
             self.table.datablob.c.datablob_name,
             self.table.datablob.c.datablob_group_name,
             self.table.datablob.c.datablob_hyperparams,
@@ -926,6 +942,10 @@ class TrainStore:
             self.table.model_template.c.model_template_group_name,
             self.table.model_template.c.model_template_hyperparams,
         ]
+
+        if return_other_metrics:
+            columns.append(self.table.model_epoch.c.model_epoch_metrics)
+
         group_by_columns = columns.copy()
         sort_metric_value = None
         if metric_name and metric_direction:
@@ -1021,7 +1041,6 @@ class TrainStore:
                 :py:class:`~scalarstop.model_template.ModelTemplate`
                 group name or a list of group names to select.
         """
-        results_dicts = []
         stmt = self._query_model_stmt(
             datablob_name=datablob_name,
             datablob_group_name=datablob_group_name,
@@ -1030,17 +1049,87 @@ class TrainStore:
         )
         with self.connection.begin():
             results = self.connection.execute(stmt)
-            for row in results:
-                row_dict = dict(row)
-                dbh = row_dict.pop("datablob_hyperparams")
-                mth = row_dict.pop("model_template_hyperparams")
-                results_dicts.append(
-                    dict(
-                        **row_dict,
-                        **{f"dbh__{key}": val for key, val in dbh.items()},
-                        **{f"mth__{key}": val for key, val in mth.items()},
-                    )
-                )
+            results_dicts = _flatten_hyperparam_results(results)
+        return pd.DataFrame(results_dicts)
+
+    def list_models_grouped_by_epoch_metric(
+        self,
+        *,
+        metric_name: str,
+        metric_direction: str,
+        datablob_name: Optional[Union[str, Sequence[str]]] = None,
+        datablob_group_name: Optional[Union[str, Sequence[str]]] = None,
+        model_template_name: Optional[Union[str, Sequence[str]]] = None,
+        model_template_group_name: Optional[Union[str, Sequence[str]]] = None,
+    ) -> pd.DataFrame:
+        """
+        Returns a :py:class:`pandas.DataFrame` listing ALL of the rows in the
+        :py:class:`~scalarstop.model.Model` table AND a metric from
+        the model's best-performing epoch.
+
+        You provide this method with a model epoch metric name
+        and whether to maximize or minimize this, and then
+        it returns all of the models and the best metric value.
+
+        Note that you can provide either ``datablob_name`` or
+        ``datablob_group_name``, but not both.
+
+        Similarly, you can provide either ``model_template_name``
+        or ``model_template_group_name``, but not both.
+
+        Args:
+            metric_name: The name of one of the metrics
+                tracked when training a model. This might be a value
+                like ``"loss"`` or ``"val_accuracy"``.
+
+            metric_direction: Set this to ``"min"`` if the metric
+                you picked in ``metric_name`` is a value where
+                lower values are better--such as ``"loss"``.
+                Set this to ``"max"`` if higher values of your
+                metric are better--such as ``"accuracy"``.
+
+            datablob_name: Either a single
+                :py:class:`~scalarstop.datablob.DataBlob`
+                name or a list of names to select.
+
+            datablob_group_name: Either a single
+                :py:class:`~scalarstop.datablob.DataBlob`
+                group name or a list of group names to select.
+
+            model_template_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                name or a list of names to select.
+
+            model_template_group_name: Either a single
+                :py:class:`~scalarstop.model_template.ModelTemplate`
+                group name or a list of group names to select.
+
+        Returns a :py:class:`pandas.DataFrame` with the following
+        columns:
+            * ``model_name``
+            * ``model_class_name``
+            * ``model_last_modified``
+            * ``datablob_name``
+            * ``datablob_group_name``
+            * ``model_template_name``
+            * ``model_template_group_name``
+            * ``sort_metric_value``
+            * :py:class:`~scalarstop.model_template.ModelTemplate` hyperparameter names prefixed with ``mth__``
+            * :py:class:`~scalarstop.datablob.DataBlob` hyperparameter names prefixed with ``dbh__``
+        """
+        stmt = self._query_model_by_epoch_stmt(
+            metric_name=metric_name,
+            metric_direction=metric_direction,
+            datablob_name=datablob_name,
+            datablob_group_name=datablob_group_name,
+            model_template_name=model_template_name,
+            model_template_group_name=model_template_group_name,
+            return_other_metrics=False,
+        )
+        with self.connection.begin():
+            results_dicts = _flatten_hyperparam_results(
+                self.connection.execute(stmt).fetchall()
+            )
         return pd.DataFrame(results_dicts)
 
     def insert_model_epoch(

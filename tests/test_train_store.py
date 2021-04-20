@@ -306,15 +306,27 @@ class TrainStoreUnits:  # pylint: disable=no-member
         self.assertEqual(gce(model3.name), 500)
         self.assertEqual(gce("nonexistent"), 0)
 
-    def test_get_best_model(self):
-        """Test :py:meth:`~scalarstop.TrainStore.get_best_model`."""
+
+class TrainStoreIntegration:  # pylint: disable=no-member
+    """
+    Integration tests for :py:class:`~scalarstop.TrainStore`.
+
+    We set up many :py:class:`~scalarstop.DataBlob`,
+    :py:class:`~scalarstop.ModelTemplate`, and
+    :py:class:`~scalarstop.Model` instances and saved them into the
+    :py:class:`~scalarstop.TrainStore`.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up a demo TrainStore."""
         datablobs = [
             MyDataBlob(hyperparams=dict(rows=5, cols=5)).batch(2),
             MyDataBlob(hyperparams=dict(rows=7, cols=5)).batch(2),
             MyDataBlob(hyperparams=dict(rows=9, cols=5)).batch(2),
         ]
         for db in datablobs:
-            self.train_store.insert_datablob(db)
+            cls.train_store.insert_datablob(db)
 
         model_templates = [
             MyModelTemplate(hyperparams=dict(layer_1_units=2)),
@@ -322,7 +334,7 @@ class TrainStoreUnits:  # pylint: disable=no-member
             MyModelTemplate(hyperparams=dict(layer_1_units=4)),
         ]
         for mt in model_templates:
-            self.train_store.insert_model_template(mt)
+            cls.train_store.insert_model_template(mt)
 
         random.shuffle(datablobs)
         random.shuffle(model_templates)
@@ -332,21 +344,23 @@ class TrainStoreUnits:  # pylint: disable=no-member
                     datablob=db,
                     model_template=mt,
                 )
-                self.train_store.insert_model(model)
+                cls.train_store.insert_model(model)
                 for epoch_num in range(3):
                     metrics = dict(
                         my_metric=db.hyperparams.rows
                         * mt.hyperparams.layer_1_units
                         * epoch_num
                     )
-                    self.train_store.insert_model_epoch(
+                    cls.train_store.insert_model_epoch(
                         model_name=model.name,
                         epoch_num=epoch_num,
                         metrics=metrics,
                     )
                     if metrics["my_metric"] == 72:
-                        expected_best = model
+                        cls.expected_best = model
 
+    def test_get_best_model(self):
+        """Test :py:meth:`~scalarstop.TrainStore.get_best_model`."""
         actual_best = self.train_store.get_best_model(
             metric_name="my_metric",
             metric_direction="max",
@@ -371,33 +385,63 @@ class TrainStoreUnits:  # pylint: disable=no-member
             ],
         )
         self.assertEqual(
-            actual_best.datablob_group_name, expected_best.datablob.group_name
+            actual_best.datablob_group_name, self.expected_best.datablob.group_name
         )
         self.assertEqual(
             actual_best.datablob_hyperparams,
-            sp.dataclasses.asdict(expected_best.datablob.hyperparams),
+            sp.dataclasses.asdict(self.expected_best.datablob.hyperparams),
         )
-        self.assertEqual(actual_best.datablob_name, expected_best.datablob.name)
+        self.assertEqual(actual_best.datablob_name, self.expected_best.datablob.name)
         self.assertEqual(actual_best.model_class_name, "KerasModel")
         self.assertEqual(actual_best.model_epoch_metrics, dict(my_metric=72))
-        self.assertEqual(actual_best.model_name, expected_best.name)
+        self.assertEqual(actual_best.model_name, self.expected_best.name)
         self.assertEqual(
             actual_best.model_template_group_name,
-            expected_best.model_template.group_name,
+            self.expected_best.model_template.group_name,
         )
         self.assertEqual(
             actual_best.model_template_hyperparams,
-            sp.dataclasses.asdict(expected_best.model_template.hyperparams),
+            sp.dataclasses.asdict(self.expected_best.model_template.hyperparams),
         )
         self.assertEqual(
-            actual_best.model_template_name, expected_best.model_template.name
+            actual_best.model_template_name, self.expected_best.model_template.name
         )
         self.assertEqual(actual_best.sort_metric_name, "my_metric")
         self.assertEqual(actual_best.sort_metric_value, 72)
 
+    def test_list_models_grouped_by_epoch_metric(self):
+        """Test :py:meth:`~scalarstop.TrainStore.list_models_grouped_by_epoch_metric`."""
+        models_by_epoch_metric = self.train_store.list_models_grouped_by_epoch_metric(
+            metric_name="my_metric",
+            metric_direction="max",
+        )
+        self.assertEqual(len(models_by_epoch_metric), 9)
+        self.assertEqual(
+            models_by_epoch_metric["sort_metric_value"].tolist(),
+            [72, 56, 54, 42, 40, 36, 30, 28, 20],
+        )
+        self.assertEqual(
+            sorted(models_by_epoch_metric.keys()),
+            [
+                "datablob_group_name",
+                "datablob_name",
+                "dbh__cols",
+                "dbh__rows",
+                "model_class_name",
+                "model_last_modified",
+                "model_name",
+                "model_template_group_name",
+                "model_template_name",
+                "mth__layer_1_units",
+                "mth__loss",
+                "mth__optimizer",
+                "sort_metric_value",
+            ],
+        )
+
 
 @requires_external_database
-class TestTrainStoreWithExternalDatabase(TrainStoreUnits, unittest.TestCase):
+class TestTrainStoreUnitsWithExternalDatabase(TrainStoreUnits, unittest.TestCase):
     """
     Runs TrainStore unit test against an external non-SQLite database.
 
@@ -452,7 +496,7 @@ class TestTrainStoreWithExternalDatabase(TrainStoreUnits, unittest.TestCase):
 
 
 @requires_sqlite_json
-class TestTrainStoreWithSQLite(TrainStoreUnits, unittest.TestCase):
+class TestTrainStoreUnitsWithSQLite(TrainStoreUnits, unittest.TestCase):
     """Runs TrainStore unit tests against a SQLite backend."""
 
     def setUp(self):
@@ -502,3 +546,47 @@ class TestTrainStoreWithSQLite(TrainStoreUnits, unittest.TestCase):
                     self.assertIn("prefix_3__model", tables)
                     self.assertIn("prefix_3__model_epoch", tables)
                     self.assertIn("prefix_3__model_template", tables)
+
+
+@requires_external_database
+class TestTrainStoreIntegrationWithExternalDatabase(
+    TrainStoreIntegration, unittest.TestCase
+):
+    """Run TrainStore integration tests using PostgreSQL."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.connection_string = os.environ["TRAIN_STORE_CONNECTION_STRING"]
+        # Every time we run a unit test, we should connect to the database
+        # and drop the database tables.
+        with sp.TrainStore(connection_string=cls.connection_string) as train_store:
+            with train_store.connection.begin():
+                train_store.table.metadata.drop_all(train_store.connection)
+        cls.train_store = sp.TrainStore(connection_string=cls.connection_string)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.train_store.close()
+
+
+@requires_sqlite_json
+class TestTrainStoreIntegrationWithSQLite(TrainStoreIntegration, unittest.TestCase):
+    """Run TrainStore integration tests using SQLite3."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up a SQLite TrainStore."""
+        cls._sqlite_directory_context = tempfile.TemporaryDirectory()
+        cls.sqlite_filename = os.path.join(
+            cls._sqlite_directory_context.name, "train_store.sqlite3"
+        )
+        cls.train_store = sp.TrainStore.from_filesystem(
+            filename=cls.sqlite_filename,
+        )
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.train_store.close()
+        cls._sqlite_directory_context.cleanup()
