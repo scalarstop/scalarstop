@@ -1106,16 +1106,20 @@ class TrainStore:
 
         Returns a :py:class:`pandas.DataFrame` with the following
         columns:
-            * ``model_name``
-            * ``model_class_name``
-            * ``model_last_modified``
-            * ``datablob_name``
-            * ``datablob_group_name``
-            * ``model_template_name``
-            * ``model_template_group_name``
-            * ``sort_metric_value``
-            * :py:class:`~scalarstop.model_template.ModelTemplate` hyperparameter names prefixed with ``mth__``
-            * :py:class:`~scalarstop.datablob.DataBlob` hyperparameter names prefixed with ``dbh__``
+
+        * ``model_name``
+        * ``model_class_name``
+        * ``model_last_modified``
+        * ``datablob_name``
+        * ``datablob_group_name``
+        * ``model_template_name``
+        * ``model_template_group_name``
+        * ``sort_metric_value``
+        * :py:class:`~scalarstop.model_template.ModelTemplate`
+          hyperparameter names prefixed with ``mth__``
+        * :py:class:`~scalarstop.datablob.DataBlob`
+          hyperparameter names prefixed with ``dbh__``
+
         """
         stmt = self._query_model_by_epoch_stmt(
             metric_name=metric_name,
