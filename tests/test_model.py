@@ -336,6 +336,44 @@ class TestKerasModel(unittest.TestCase):
         self.assertEqual(len(on_provided_data), 4)
         self.assertAlmostEqual(on_provided_data[0], 0.0)
 
+    def test_fit_invalid_profile_batch(self):
+        """Test that KerasModel.fit() needs tensorboard_directory to specify profile_batch."""
+        model = sp.KerasModel(
+            datablob=self.datablob,
+            model_template=self.model_template,
+        )
+        with self.assertRaises(ValueError):
+            model.fit(final_epoch=3, verbose=0, profile_batch=(1, 2))
+
+    def test_fit_with_tensorboard(self):
+        """Test that we can enable the TensorBoard callback."""
+        with tempfile.TemporaryDirectory() as tensorboard_directory:
+            model = sp.KerasModel(
+                datablob=self.datablob,
+                model_template=self.model_template,
+            )
+            assert_directory(tensorboard_directory, [])
+            model.fit(
+                final_epoch=2,
+                verbose=0,
+                tensorboard_directory=tensorboard_directory,
+            )
+            assert_directory(tensorboard_directory, [model.name])
+            model_tb_dir = os.path.join(tensorboard_directory, model.name)
+            assert_directory(model_tb_dir, ["train", "validation"])
+            assert not os.path.exists(
+                os.path.join(model_tb_dir, "train", "plugins", "profile")
+            )
+            model.fit(
+                final_epoch=3,
+                verbose=0,
+                tensorboard_directory=tensorboard_directory,
+                profile_batch=(1, 2),
+            )
+            assert os.path.exists(
+                os.path.join(model_tb_dir, "train", "plugins", "profile")
+            )
+
     @requires_sqlite_json
     def test_fit_with_train_store(self):
         """Test that KerasModel.fit() can log to the TrainStore."""

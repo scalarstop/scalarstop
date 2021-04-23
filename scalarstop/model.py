@@ -138,7 +138,7 @@ names and hyperparameters.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Mapping, Optional, Sequence, cast
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import tensorflow as tf
@@ -506,8 +506,10 @@ class KerasModel(Model):
         verbose: Optional[int] = None,
         models_directory: Optional[str] = None,
         log_epochs: bool = False,
-        callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
         train_store: Optional[TrainStore] = None,
+        tensorboard_directory: Optional[str] = None,
+        profile_batch: Union[int, Tuple[int, int]] = 0,
+        callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
         **kwargs,
     ) -> Mapping[str, Sequence[float]]:
         """
@@ -534,6 +536,14 @@ class KerasModel(Model):
                 :py:class:`~scalarstop.ModelTemplate` s,
                 and :py:class:`~scalarstop.model.Model` s.
 
+            tensorboard_directory: A directory on the filesystem to write
+                TensorBoard data.
+
+            profile_batch: A batch number or a tuple of batch numbers
+                to profile. This is only valid when
+                a valid filesystem path is given as
+                ``tensorboard_directory``.
+
             callbacks: A list of Keras callbacks to use while training.
         """
         if kwargs:
@@ -558,6 +568,21 @@ class KerasModel(Model):
                     train_store=train_store,
                 )
             )
+
+            if tensorboard_directory:
+                callbacks.append(
+                    tf.keras.callbacks.TensorBoard(
+                        log_dir=os.path.join(tensorboard_directory, self.name),
+                        profile_batch=profile_batch,
+                    )
+                )
+            else:
+                if profile_batch != 0:
+                    raise ValueError(
+                        "You cannot set profile_batch without also "
+                        "setting tensorboard_directory. You set profile_batch "
+                        f"to {profile_batch}"
+                    )
 
             if train_store:
                 train_store.insert_datablob(self._datablob, ignore_existing=True)
