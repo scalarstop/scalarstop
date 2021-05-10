@@ -30,7 +30,7 @@ class TrainStoreUnits:  # pylint: disable=no-member
 
     def setUp(self):
         """Setup."""
-        self._models_directory_context = tempfile.TemporaryDirectory()
+        self._models_directory_context = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.models_directory = self._models_directory_context.name
 
         self.datablob = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
@@ -501,7 +501,7 @@ class TestTrainStoreUnitsWithSQLite(TrainStoreUnits, unittest.TestCase):
 
     def setUp(self):
         super().setUp()
-        self._sqlite_directory_context = tempfile.TemporaryDirectory()
+        self._sqlite_directory_context = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.sqlite_filename = os.path.join(
             self._sqlite_directory_context.name, "train_store.sqlite3"
         )
@@ -577,7 +577,7 @@ class TestTrainStoreIntegrationWithSQLite(TrainStoreIntegration, unittest.TestCa
     @classmethod
     def setUpClass(cls):
         """Set up a SQLite TrainStore."""
-        cls._sqlite_directory_context = tempfile.TemporaryDirectory()
+        cls._sqlite_directory_context = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         cls.sqlite_filename = os.path.join(
             cls._sqlite_directory_context.name, "train_store.sqlite3"
         )
