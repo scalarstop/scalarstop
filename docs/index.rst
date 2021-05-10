@@ -6,6 +6,12 @@
 
     Home <self>
     API Documentation <autoapi/scalarstop/index>
+
+.. toctree::
+    :hidden:
+    :maxdepth: 2
+    :caption: External Links
+
     ScalarStop on GitHub <https://github.com/scalarstop/scalarstop>
     Technology at Neocrym <https://technology.neocrym.com/>
     Neocrym.com <https://www.neocrym.com>
@@ -13,25 +19,25 @@
 
 .. raw:: html
 
-    <div class="scalarstop-hide-on-mobile"><img src="_static/images/code-screenshot.svg" class="scalarstop-hero-img" /></div>
+    <div class="mega-hide-on-mobile"><img src="_static/images/code-screenshot.svg" class="mega-hero-img" /></div>
 
-    <h1 class="scalarstop-header centered">Keep track of your machine learning experiments.</h1>
+    <h1 class="mega-header centered">Keep track of your machine learning experiments.</h1>
 
-    <h2 class="scalarstop-header centered">ScalarStop is an open-source framework for reproducible machine learning research.</h2>
+    <h2 class="mega-header centered">ScalarStop is an open-source framework for reproducible machine learning research.</h2>
 
-    <h3 class="scalarstop-header">ScalarStop was written and open-sourced at <a href="https://www.neocrym.com">Neocrym</a>, where it is used to train thousands of models every week.
+    <h3 class="mega-header">ScalarStop was written and open-sourced at <a href="https://www.neocrym.com">Neocrym</a>, where it is used to train thousands of models every week.
 
-    <h2 class="scalarstop-header">ScalarStop can help you:</h2>
+    <h2 class="mega-header">ScalarStop can help you:</h2>
 
-    <h3 class="scalarstop-header scalarstop-bigbullet">organize datasets and models with <em>content-addressable</em> names.</h3>
+    <h3 class="mega-header scalarstop-bigbullet">organize datasets and models with <em>content-addressable</em> names.</h3>
     ScalarStop datasets and models are given automatically-generated
     names based on their hyperparameters--making them easy to version and easy to find.
 
-    <h3 class="scalarstop-header scalarstop-bigbullet">save/load datasets and models to/from the filesystem.</h3>
+    <h3 class="mega-header mega-bigbullet">save/load datasets and models to/from the filesystem.</h3>
     ScalarStop wraps existing dataset and model saving logic in TensorFlow
     for safety, correctness, and completion.
 
-    <h3 class="scalarstop-header scalarstop-bigbullet">record hyperparameters and metrics to a relational database.</h3>
+    <h3 class="mega-header mega-bigbullet">record hyperparameters and metrics to a relational database.</h3>
     ScalarStop saves dataset and model names, hyperparameters, and training
     metrics to a SQLite or PostgreSQL database.
 

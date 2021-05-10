@@ -19,6 +19,7 @@ rm-venv:
 install:
 	$(POETRY) update
 	$(POETRY) install
+	$(POETRY) run pip install -r .readthedocs-requirements.txt
 
 fmt:
 	$(POETRY) run isort --atomic . docs/conf.py
