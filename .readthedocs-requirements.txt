@@ -1,4 +1,4 @@
 Sphinx==3.5.3
 sphinx-autodoc-typehints==1.11.1
 sphinx-autoapi==1.7.0
-git+git://github.com/neocrym/furo@main#egg=furo
+neocrym-sphinx-theme

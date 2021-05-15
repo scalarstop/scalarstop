@@ -12,10 +12,9 @@
     :maxdepth: 2
     :caption: External Links
 
+    Offical Tutorial <https://nbviewer.jupyter.org/github/scalarstop/scalarstop/blob/main/notebooks/tutorial.ipynb>
     ScalarStop on GitHub <https://github.com/scalarstop/scalarstop>
-    Technology at Neocrym <https://technology.neocrym.com/>
-    Neocrym.com <https://www.neocrym.com>
-    Privacy Policy <https://www.neocrym.com/privacy/>
+    ScalarStop on PyPI <https://pypi.org/project/scalarstop>
 
 .. raw:: html
 

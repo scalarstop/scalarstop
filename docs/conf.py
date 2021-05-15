@@ -81,21 +81,14 @@ exclude_patterns = ["_build", "_templates" "Thumbs.db", ".DS_Store"]
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "furo"
+html_theme = "neocrym_sphinx_theme"
 html_show_sphinx = False
 html_copy_source = False
 html_show_source = False
 html_theme_options = dict(
-    light_logo="1x/logo-color-black-on-transparent-1x.png",
-    dark_logo="1x/logo-color-white-on-transparent-1x.png",
+    light_logo="global/images/scalarstop/v1/1x/scalarstop-wordmark-color-black-on-transparent--1x.png",
+    dark_logo="global/images/scalarstop/v1/1x/scalarstop-wordmark-color-white-on-transparent--1x.png",
     sidebar_hide_name=True,
-    dark_css_variables={
-        "color-foreground-primary": "#c5c5c5",
-        "color-background-primary": "#131416",
-        "color-background-secondary": "#1a1c1e",
-        "color-brand-primary": "#5aa8ed",
-        "color-brand-content": "#5aa8ed",
-    },
 )
 html_css_files = ["css/custom.css"]
 
