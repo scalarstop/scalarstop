@@ -1,4 +1,4 @@
-.. image:: https://www.scalarstop.com/en/latest/_static/1x/logo-color-black-on-white-1x.png
+.. image:: https://static.neocrym.com/images/scalarstop/v1/1x/scalarstop-wordmark-color-black-on-white--1x.png
 
 Keep track of your machine learning experiments with ScalarStop.
 ================================================================
