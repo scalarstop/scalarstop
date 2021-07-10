@@ -86,8 +86,8 @@ html_show_sphinx = False
 html_copy_source = False
 html_show_source = False
 html_theme_options = dict(
-    light_logo="global/images/scalarstop/v1/1x/scalarstop-wordmark-color-black-on-transparent--1x.png",
-    dark_logo="global/images/scalarstop/v1/1x/scalarstop-wordmark-color-white-on-transparent--1x.png",
+    light_logo="https://static.neocrym.com/images/scalarstop/v1/1x/scalarstop-wordmark-color-black-on-transparent--1x.png",
+    dark_logo="https://static.neocrym.com/images/scalarstop/v1/1x/scalarstop-wordmark-color-white-on-transparent--1x.png",
     sidebar_hide_name=True,
 )
 html_css_files = ["css/custom.css"]
