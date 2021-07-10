@@ -64,8 +64,8 @@ class TestKerasModel(unittest.TestCase):
     """Test KerasModel."""
 
     def setUp(self):
-        self.temp_dir_context = (  # pylint: disable=consider-using-with
-            tempfile.TemporaryDirectory()
+        self.temp_dir_context = (
+            tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         )
         self.models_directory = self.temp_dir_context.name
         self.datablob = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
