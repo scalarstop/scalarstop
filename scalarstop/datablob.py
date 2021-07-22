@@ -283,7 +283,7 @@ class DataBlob:
         datablobs_directory: str,
         **kwargs,
     ):
-        """Load a :py:class:`DataBlob` from the fielsystem, calculating the
+        """Load a :py:class:`DataBlob` from the filesystem, calculating the
         filename from the hyperparameters. Create a new :py:class:`DataBlob`
         if we cannot find a saved one on the filesystem.
 
