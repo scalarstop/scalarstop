@@ -77,7 +77,8 @@ def _load_tfdata_dataset(path, element_spec=None) -> tf.data.Dataset:
     tfdata_path = os.path.join(path, _TFDATA_DIRECTORY_NAME)
     try:
         loaded_tfdata = tf.data.experimental.load(
-            path=tfdata_path, element_spec=element_spec,
+            path=tfdata_path,
+            element_spec=element_spec,
         )
     except tf.errors.NotFoundError as exc:
         raise TensorFlowDatasetNotFound(tfdata_path) from exc
