@@ -76,12 +76,23 @@ def _load_tfdata_dataset(path, element_spec=None) -> tf.data.Dataset:
     # Load the tf.data Dataset.
     tfdata_path = os.path.join(path, _TFDATA_DIRECTORY_NAME)
     try:
-        return tf.data.experimental.load(
+        loaded_tfdata = tf.data.experimental.load(
             path=tfdata_path,
             element_spec=element_spec,
         )
     except tf.errors.NotFoundError as exc:
         raise TensorFlowDatasetNotFound(tfdata_path) from exc
+
+    # Select the DATA sharding policy. This typically works better because
+    # ScalarStop does not currently focus on saving DataBlobs with the
+    # FILE sharing policy.
+    options = tf.data.Options()
+    options.experimental_distribute.auto_shard_policy = (
+        tf.data.experimental.AutoShardPolicy.DATA
+    )
+    loaded_tfdata = loaded_tfdata.with_options(options)
+
+    return loaded_tfdata
 
 
 class DataBlob:
