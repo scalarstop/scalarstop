@@ -18,7 +18,12 @@ rm-venv:
 
 install:
 	$(POETRY) update
-	$(POETRY) install
+	$(POETRY) install --extras=tensorflow
+	$(POETRY) run pip install -r .readthedocs-requirements.txt
+
+install-gpu:
+	$(POETRY) update
+	$(POETRY) install --extras=tensorflow-gpu
 	$(POETRY) run pip install -r .readthedocs-requirements.txt
 
 fmt:
