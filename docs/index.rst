@@ -58,11 +58,21 @@ Installation
 ^^^^^^^^^^^^
 
 ScalarStop is `available on PyPI <https://pypi.org/project/scalarstop/>`_.
-You can install by running the command:
+
+If you are using TensorFlow on a CPU, you can install ScalarStop with the command:
 
 .. code:: bash
 
-    python3 -m pip install scalarstop
+    python3 -m pip install scalarstop[tensorflow]
+
+If you are using TensorFlow with GPUs, you can install ScalarStop with the command:
+
+.. code:: bash
+
+    python3 -m pip install scalarstop[tensorflow-gpu]
+
+Development
+-----------
 
 If you would like to make changes to ScalarStop, you can `clone the repository <https://github.com/scalarstop/scalarstop>`_
 from GitHub.
