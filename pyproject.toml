@@ -10,12 +10,16 @@ repository = "https://github.com/scalarstop/scalarstop"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-tensorflow = ">=2.3.0"
 pandas = "*"
 numpy = "*"
 cloudpickle = "^1.6.0"
 SQLAlchemy = "^1.4.5"
 psycopg2-binary = "^2.8.6"
+
+# These are optional dependencies installed
+# with pip extras. Seee the `tool.poetry.extras` section for more.
+tensorflow = { version = ">=2.3.0", optional = true }
+tensorflow-gpu = { version = ">=2.3.0", optional = true }
 
 [tool.poetry.dev-dependencies]
 # dev-dependencies does not include dependencies
@@ -27,6 +31,12 @@ pylint = "^2.7.4"
 mypy = "^0.812"
 coverage = "^5.5"
 jupyter = "^1.0.0"
+
+# We use pip "extras" to enforce a dependency on either
+# the `tensorflow` or `tensorflow-gpu` package.
+[tool.poetry.extras]
+tensorflow = ["tensorflow"]
+tensorflow-gpu = ["tensorflow-gpu"]
 
 [tool.black]
 target-version = ['py38']
@@ -53,6 +63,7 @@ exclude = '''
   )/
 )
 '''
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
