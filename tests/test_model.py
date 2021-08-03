@@ -1,8 +1,10 @@
 """Unit tests for scalarstop.model."""
 import doctest
+import logging
 import os
 import tempfile
 import unittest
+import unittest.mock
 import warnings
 
 import tensorflow as tf
@@ -344,6 +346,30 @@ class TestKerasModel(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             model.fit(final_epoch=3, verbose=0, profile_batch=(1, 2))
+
+    def test_fit_with_custom_logger(self):
+        """Test that we can specify a custom logging.Logger to KerasModel.fit()."""
+        model = sp.KerasModel(
+            datablob=self.datablob,
+            model_template=self.model_template,
+        )
+
+        custom_logger = logging.Logger("testlogger")
+        with unittest.mock.patch.object(custom_logger, "info") as mock_logger_info:
+            # Run an epoch without a logger
+            # and validate that our logger was not called.
+            model.fit(final_epoch=1, verbose=0)
+
+            # Run an epoch with a custom loggers, but without enabling logging.
+            # We still do not expect our logger to be called.
+            with self.assertRaises(ValueError):
+                model.fit(final_epoch=2, verbose=0, logger=custom_logger)
+                mock_logger_info.assert_not_called()
+
+            # Run an epoch with BOTH logging enabled and a custom logger.
+            # This time, we should actually expect our logger to be called.
+            model.fit(final_epoch=3, verbose=0, log_epochs=True, logger=custom_logger)
+            mock_logger_info.assert_called()
 
     def test_fit_with_tensorboard(self):
         """Test that we can enable the TensorBoard callback."""

@@ -345,7 +345,7 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
         models_directory: Optional[str] = None,
         train_store: Optional[TrainStore] = None,
         log_epochs: bool = False,
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[Any] = None,
     ):
         super().__init__()
         self._scalarstop_model = scalarstop_model
@@ -506,6 +506,7 @@ class KerasModel(Model):
         verbose: Optional[int] = None,
         models_directory: Optional[str] = None,
         log_epochs: bool = False,
+        logger: Optional[Any] = None,
         train_store: Optional[TrainStore] = None,
         tensorboard_directory: Optional[str] = None,
         profile_batch: Union[int, Tuple[int, int]] = 0,
@@ -529,6 +530,9 @@ class KerasModel(Model):
 
             log_epochs: Emit a Python logging message as an ``INFO`` level
                 log for every single epoch.
+
+            logger: A custom Python logger to log epochs with, if
+                ``log_epochs`` is ``True``.
 
             train_store: A :py:class:`~scalarstop.TrainStore`
                 instance, which is a client that persists metadata about
@@ -560,12 +564,21 @@ class KerasModel(Model):
             else:
                 callbacks = []
 
+            if not log_epochs and logger:
+                raise ValueError(
+                    "You should not provide a custom logger with the `logger` "
+                    "parameter to `.fit()` if you will not set "
+                    "`log_epochs` to `True`. You specified "
+                    f"{log_epochs=} and {logger=}."
+                )
+
             callbacks.append(
                 _ScalarStopKerasCallback(
                     scalarstop_model=self,
                     models_directory=models_directory,
                     log_epochs=log_epochs,
                     train_store=train_store,
+                    logger=logger,
                 )
             )
 
