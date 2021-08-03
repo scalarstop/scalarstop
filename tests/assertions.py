@@ -127,6 +127,21 @@ def assert_model_after_fit(*, return_value, model, expected_epochs: int):
 
 def assert_keras_saved_model_directory(model_path):
     """Assert the directory structure of a Keras SavedModel."""
-    assert_directory(
-        model_path, ["assets", "history.json", "saved_model.pb", "variables"]
-    )
+    # Newer versions of TensorFlow might include the file
+    # `keras_model.pb`. We want the assertion to pass whether
+    # this file is included or not.
+    try:
+        assert_directory(
+            model_path, ["assets", "history.json", "saved_model.pb", "variables"]
+        )
+    except AssertionError:
+        assert_directory(
+            model_path,
+            [
+                "assets",
+                "history.json",
+                "keras_metadata.pb",
+                "saved_model.pb",
+                "variables",
+            ],
+        )
