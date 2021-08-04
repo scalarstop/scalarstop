@@ -645,6 +645,34 @@ class Test_CacheDataBlob(DataBlobTestCase):
             self.assertEqual(cached.count, 12)
 
 
+class Test_WithOptionsDataBlob(DataBlobTestCase):
+    """Tests for _WithOptionsDataBlob."""
+
+    def test_success(self):
+        """Test that setting options works."""
+        blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        # Check that the auto sharding polciy is AUTO by default.
+        self.assertEqual(
+            blob.training.options().experimental_distribute.auto_shard_policy,
+            tf.data.experimental.AutoShardPolicy.AUTO,
+        )
+        # Try setting the AutoShardPolicy to DATA.
+        options = tf.data.Options()
+        options.experimental_distribute.auto_shard_policy = (
+            tf.data.experimental.AutoShardPolicy.DATA
+        )
+        blob_with_options = blob.with_options(options)
+
+        # Check that the sharding policy has been properly applied.
+        for subtype in ["training", "validation", "test"]:
+            with self.subTest(subtype):
+                tfdata = getattr(blob_with_options, subtype)
+                self.assertEqual(
+                    tfdata.options().experimental_distribute.auto_shard_policy,
+                    tf.data.experimental.AutoShardPolicy.DATA,
+                )
+
+
 class TestDataFrameDataBlob(DataBlobTestCase):
     """Tests for DataFrameDataBlob."""
 

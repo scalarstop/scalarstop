@@ -399,6 +399,12 @@ class DataBlob:
         """Cache this :py:class:`DataBlob` into memory before iterating over it."""
         return _CacheDataBlob(wraps=self)
 
+    def with_options(self, options: tf.data.Options) -> "DataBlob":
+        """
+        Apply a :py:class:`tf.data.Options` object to this :py:class:`DataBlob`.
+        """
+        return _WithOptionsDataBlob(wraps=self, options=options)
+
     def save_hook(  # pylint: disable=unused-argument
         self, *, subtype: str, path: str
     ) -> None:
@@ -1006,6 +1012,25 @@ class _CacheDataBlob(_WrapDataBlob):
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         return tfdata.cache()
+
+
+class _WithOptionsDataBlob(_WrapDataBlob):
+    """
+    Apply a :py:class:`tf.data.Options` object to this :py:class:`DataBlob`.
+    """
+
+    def __init__(
+        self,
+        *,
+        wraps: Any,
+        options: tf.data.Options,
+    ):
+        super().__init__(wraps=wraps)
+        self._tfdata_options = options
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        with_options_tfdata = tfdata.with_options(self._tfdata_options)
+        return with_options_tfdata
 
 
 class _LoadDataBlob(DataBlob):
