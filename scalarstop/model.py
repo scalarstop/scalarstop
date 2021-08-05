@@ -344,6 +344,7 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
         scalarstop_model: "KerasModel",
         models_directory: Optional[str] = None,
         train_store: Optional[TrainStore] = None,
+        log_batches: bool = False,
         log_epochs: bool = False,
         logger: Optional[Any] = None,
     ):
@@ -351,12 +352,40 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
         self._scalarstop_model = scalarstop_model
         self._models_directory = models_directory
         self._train_store = train_store
+        self._log_batches = log_batches
         self._log_epochs = log_epochs
         self._logger = logger or _LOGGER
+
+    def on_train_batch_end(  # pylint: disable=signature-differs
+        self, batch: int, logs: Dict[str, Any]
+    ) -> None:
+        """Enable issuing log messages at the end of every batch."""
+        super().on_train_batch_end(batch=batch, logs=logs)
+        # Log the batch.
+        if self._log_batches:
+            float_logs = _logs_as_floats(logs)
+            self._logger.info(
+                "Trained batch %s for epoch %s for model %s",
+                batch,
+                self._scalarstop_model.current_epoch,
+                self._scalarstop_model.name,
+                extra=dict(
+                    current_batch=batch,
+                    current_epoch=self._scalarstop_model.current_epoch,
+                    model_name=self._scalarstop_model.name,
+                    training_metrics=float_logs,
+                ),
+            )
 
     def on_epoch_end(  # pylint: disable=signature-differs
         self, epoch: int, logs: Dict[str, Any]
     ) -> None:
+        """
+        Enable various tasks at the end of every epoch, such as:
+         - saving the model to the filesystem.
+         - saving epoch metrics to the TrainStore.
+         - logging epoch metrics to a Python logger.
+        """
         super().on_epoch_end(epoch=epoch, logs=logs)
         # Make sure that metrics are floats and not some
         # unserializable data type like tf.Tensor
@@ -382,16 +411,17 @@ class _ScalarStopKerasCallback(tf.keras.callbacks.Callback):
             )
 
         # Log the epoch.
-        self._logger.info(
-            "Trained epoch %s for model %s",
-            self._scalarstop_model.current_epoch,
-            self._scalarstop_model.name,
-            extra=dict(
-                current_epoch=self._scalarstop_model.current_epoch,
-                model_name=self._scalarstop_model.name,
-                training_metrics=float_logs,
-            ),
-        )
+        if self._log_epochs:
+            self._logger.info(
+                "Trained epoch %s for model %s",
+                self._scalarstop_model.current_epoch,
+                self._scalarstop_model.name,
+                extra=dict(
+                    current_epoch=self._scalarstop_model.current_epoch,
+                    model_name=self._scalarstop_model.name,
+                    training_metrics=float_logs,
+                ),
+            )
 
 
 class KerasModel(Model):
@@ -505,6 +535,7 @@ class KerasModel(Model):
         final_epoch: int,
         verbose: Optional[int] = None,
         models_directory: Optional[str] = None,
+        log_batches: bool = False,
         log_epochs: bool = False,
         logger: Optional[Any] = None,
         train_store: Optional[TrainStore] = None,
@@ -528,11 +559,14 @@ class KerasModel(Model):
             models_directory: The directory to save this machine learning model
                 every epoch.
 
-            log_epochs: Emit a Python logging message as an ``INFO`` level
-                log for every single epoch.
+            log_batches: Emit a Python logging message as an ``INFO`` level
+                log at the end of every single training batch.
 
-            logger: A custom Python logger to log epochs with, if
-                ``log_epochs`` is ``True``.
+            log_epochs: Emit a Python logging message as an ``INFO`` level
+                log at the end of every single training epoch.
+
+            logger: A custom Python logger to log epochs with, to be used if
+                ``log_batches`` and/or ``log_epochs`` are ``True``.
 
             train_store: A :py:class:`~scalarstop.TrainStore`
                 instance, which is a client that persists metadata about
@@ -564,18 +598,11 @@ class KerasModel(Model):
             else:
                 callbacks = []
 
-            if not log_epochs and logger:
-                raise ValueError(
-                    "You should not provide a custom logger with the `logger` "
-                    "parameter to `.fit()` if you will not set "
-                    "`log_epochs` to `True`. You specified "
-                    f"{log_epochs=} and {logger=}."
-                )
-
             callbacks.append(
                 _ScalarStopKerasCallback(
                     scalarstop_model=self,
                     models_directory=models_directory,
+                    log_batches=log_batches,
                     log_epochs=log_epochs,
                     train_store=train_store,
                     logger=logger,

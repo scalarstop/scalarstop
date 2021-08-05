@@ -62,7 +62,7 @@ class TestModel(unittest.TestCase):
             model.evaluate(dataset=tf.data.Dataset.from_tensor_slices([1, 2]))
 
 
-class TestKerasModel(unittest.TestCase):
+class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-methods
     """Test KerasModel."""
 
     def setUp(self):
@@ -347,28 +347,64 @@ class TestKerasModel(unittest.TestCase):
         with self.assertRaises(ValueError):
             model.fit(final_epoch=3, verbose=0, profile_batch=(1, 2))
 
-    def test_fit_with_custom_logger(self):
-        """Test that we can specify a custom logging.Logger to KerasModel.fit()."""
-        model = sp.KerasModel(
-            datablob=self.datablob,
-            model_template=self.model_template,
+    def test_fit_with_logging_args_default(self):
+        """Test training an epoch with the default logging arguments."""
+        # Make sure that no exceptions are thrown.
+        self.keras_model.fit(verbose=0, final_epoch=1)
+
+    def test_fit_with_log_batches(self):
+        """Test training an epoch while logging batches to the default logger."""
+        # Make sure that no exceptions are thrown.
+        self.keras_model.fit(verbose=0, final_epoch=1, log_batches=True)
+
+    def test_fit_with_log_epochs(self):
+        """Test training an epoch while logging epochs to the default logger."""
+        # Make sure that no exceptions are thrown.
+        self.keras_model.fit(verbose=0, final_epoch=1, log_epochs=True)
+
+    def test_fit_with_log_batches_and_log_epochs(self):
+        """Test training an epoch while logging batches and epochs to the default logger."""
+        # Make sure that no exceptions are thrown.
+        self.keras_model.fit(
+            verbose=0, final_epoch=1, log_batches=True, log_epochs=True
         )
 
+    def test_fit_with_logging_args_default_custom_logger(self):
+        """Test that we do NOT log to a custom logger if log_batches = log_epochs = False."""
         custom_logger = logging.Logger("testlogger")
         with unittest.mock.patch.object(custom_logger, "info") as mock_logger_info:
-            # Run an epoch without a logger
-            # and validate that our logger was not called.
-            model.fit(final_epoch=1, verbose=0)
+            self.keras_model.fit(verbose=0, final_epoch=1, logger=custom_logger)
+            mock_logger_info.assert_not_called()
 
-            # Run an epoch with a custom loggers, but without enabling logging.
-            # We still do not expect our logger to be called.
-            with self.assertRaises(ValueError):
-                model.fit(final_epoch=2, verbose=0, logger=custom_logger)
-                mock_logger_info.assert_not_called()
+    def test_fit_with_log_batches_custom_logger(self):
+        """Test training while logging batches to a custom logger."""
+        custom_logger = logging.Logger("testlogger")
+        with unittest.mock.patch.object(custom_logger, "info") as mock_logger_info:
+            self.keras_model.fit(
+                verbose=0, final_epoch=1, logger=custom_logger, log_batches=True
+            )
+            mock_logger_info.assert_called()
 
-            # Run an epoch with BOTH logging enabled and a custom logger.
-            # This time, we should actually expect our logger to be called.
-            model.fit(final_epoch=3, verbose=0, log_epochs=True, logger=custom_logger)
+    def test_fit_with_log_epochs_custom_logger(self):
+        """Test training while logging epoches to a custom logger."""
+        custom_logger = logging.Logger("testlogger")
+        with unittest.mock.patch.object(custom_logger, "info") as mock_logger_info:
+            self.keras_model.fit(
+                verbose=0, final_epoch=1, logger=custom_logger, log_epochs=True
+            )
+            mock_logger_info.assert_called()
+
+    def test_fit_with_log_batches_and_log_epochs_custom_logger(self):
+        """Test training while logging both batches and epochs to a custom logger."""
+        custom_logger = logging.Logger("testlogger")
+        with unittest.mock.patch.object(custom_logger, "info") as mock_logger_info:
+            self.keras_model.fit(
+                verbose=0,
+                final_epoch=1,
+                logger=custom_logger,
+                log_batches=True,
+                log_epochs=True,
+            )
             mock_logger_info.assert_called()
 
     def test_fit_with_tensorboard(self):
