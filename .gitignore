@@ -1,3 +1,6 @@
+# ignore IDE files
+.vscode
+
 # libraries should not check in their poetry.lock files
 poetry.lock
 
