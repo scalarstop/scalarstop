@@ -22,6 +22,7 @@ import tensorflow as tf
 import scalarstop.pickle
 from scalarstop._filesystem import rmtree
 from scalarstop._naming import temporary_filename
+from scalarstop._single_namespace import SingleNamespace
 from scalarstop.dataclasses import asdict
 from scalarstop.exceptions import (
     DataBlobNotFound,
@@ -36,8 +37,6 @@ from scalarstop.hyperparams import (
     HyperparamsType,
     NestedHyperparamsType,
     enforce_dict,
-    hash_hyperparams,
-    init_hyperparams,
 )
 
 _METADATA_JSON_FILENAME = "metadata.json"
@@ -95,7 +94,7 @@ def _load_tfdata_dataset(path, element_spec=None) -> tf.data.Dataset:
     return loaded_tfdata
 
 
-class DataBlob:
+class DataBlob(SingleNamespace):
     """
     Subclass this to group your training, validation, and test sets for training machine learning models.
 
@@ -236,27 +235,9 @@ class DataBlob:
     >>> tempdir.cleanup()
     """  # pylint: disable=line-too-long
 
-    Hyperparams: Type[HyperparamsType] = HyperparamsType
-    hyperparams: HyperparamsType
-
     _training: Optional[tf.data.Dataset] = None
     _validation: Optional[tf.data.Dataset] = None
     _test: Optional[tf.data.Dataset] = None
-
-    _name: Optional[str] = None
-    _group_name: Optional[str] = None
-
-    def __init__(
-        self,  # pylint: disable=unused-argument
-        *,
-        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
-        **kwargs,
-    ):
-        self.hyperparams = init_hyperparams(
-            class_name=self.__class__.__name__,
-            hyperparams=hyperparams,
-            hyperparams_class=self.Hyperparams,
-        )
 
     @classmethod
     def from_filesystem(
@@ -276,13 +257,7 @@ class DataBlob:
                 :py:class:`DataBlob` s. The exact filename is calculated
                 from the class name and hyperparams.
         """
-        the_hyperparams = init_hyperparams(
-            class_name=cls.__name__,
-            hyperparams=hyperparams,
-            hyperparams_class=cls.Hyperparams,
-        )
-        group_name = cls._make_group_name()
-        name = cls._make_name(group_name=group_name, hyperparams=the_hyperparams)
+        name = cls.calculate_name(hyperparams=hyperparams)
         path = os.path.join(datablobs_directory, name)
         return cls.from_exact_path(path)
 
@@ -322,39 +297,6 @@ class DataBlob:
 
     def __repr__(self) -> str:
         return f"<sp.DataBlob {self.name}>"
-
-    @staticmethod
-    def _make_name(*, group_name: str, hyperparams) -> str:
-        """Compute what this :py:class:`DataBlob` 's name should be."""
-        return "-".join((group_name, hash_hyperparams(hyperparams)))
-
-    @classmethod
-    def _make_group_name(cls) -> str:
-        """Compute what this :py:class:`DataBlob` 's group name should be."""
-        return cls.__name__
-
-    @property
-    def name(self) -> str:
-        """The name of this specific dataset."""
-        if self._name is None:
-            self._name = self._make_name(
-                group_name=self.group_name, hyperparams=self.hyperparams
-            )
-        return self._name
-
-    @property
-    def group_name(self) -> str:
-        """
-        The group name of this dataset.
-
-        This is typically the :py:class:`DataBlob` subclass's class name.
-
-        Conceptually, the group name is the name for all :py:class:`DataBlob` s that
-        share the same code but have different hyperparameters.
-        """
-        if self._group_name is None:
-            self._group_name = self._make_group_name()
-        return self._group_name
 
     def set_training(self) -> tf.data.Dataset:
         """Create a :py:class:`tf.data.Dataset` for the training set."""
