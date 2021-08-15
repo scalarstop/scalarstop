@@ -234,13 +234,13 @@ class Model:
             self._model = self._model_template.new_model()
         else:
             self._model = model
-        self._name = self._make_name(
+        self._name = self.calculate_name(
             datablob_name=self._datablob.name,
             model_template_name=self._model_template.name,
         )
 
     @staticmethod
-    def _make_name(*, model_template_name: str, datablob_name: str) -> str:
+    def calculate_name(*, model_template_name: str, datablob_name: str) -> str:
         """
         Create a model name from a
         :py:class:`~scalarstop.ModelTemplate`
@@ -435,7 +435,7 @@ class KerasModel(Model):
         model_template: ModelTemplate,
         models_directory: str,
     ) -> "KerasModel":
-        model_name = cls._make_name(
+        model_name = cls.calculate_name(
             datablob_name=datablob.name, model_template_name=model_template.name
         )
         model_path = os.path.join(models_directory, model_name)
