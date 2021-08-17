@@ -618,31 +618,145 @@ class Test_CacheDataBlob(DataBlobTestCase):
     def test_success(self):
         """Test that in-memory caching works."""
         for subtype in ["training", "validation", "test"]:
-            # Each iteration increments the count by 3
-            # because the tf.data pipeline is not cached.
-            blob = DataBlobForCaching()
-            for _ in getattr(blob, subtype):
-                continue
-            for _ in getattr(blob, subtype):
-                continue
-            for _ in getattr(blob, subtype):
-                continue
-            self.assertEqual(blob.count, 9)
+            with self.subTest(subtype):
+                # Each iteration increments the count by 3 because the tf.data pipeline is
+                # not cached.
+                blob = DataBlobForCaching()
 
-            # Because we enable caching, the count only
-            # increments the first time.
-            cached = blob.cache()
-            self.assertEqual(blob.name, cached.name)
-            self.assertEqual(blob.group_name, cached.group_name)
-            self.assertEqual(blob.hyperparams, cached.hyperparams)
-            for _ in getattr(cached, subtype):
+                # We start at 0.
+                self.assertEqual(blob.count, 0)
+                # Generating the tf.data pipeline does not increment the count.
+                subtype_tf = getattr(blob, subtype)
+                self.assertEqual(blob.count, 0)
+
+                # Each time we iterate over the tf.data pipeline, the count
+                # value goes up by 3. The counter should stop incrementing
+                # once we begin caching the pipeline.
+                for _ in subtype_tf:
+                    continue
+                self.assertEqual(blob.count, 3)
+                for _ in subtype_tf:
+                    continue
+                self.assertEqual(blob.count, 6)
+                for _ in subtype_tf:
+                    continue
+                self.assertEqual(blob.count, 9)
+
+                # Set up the cached pipeline and verify everything is the same.
+                cached = blob.cache()
+                self.assertEqual(blob.name, cached.name)
+                self.assertEqual(blob.group_name, cached.group_name)
+                self.assertEqual(blob.hyperparams, cached.hyperparams)
+
+                # The count is where we last left it.
+                self.assertEqual(cached.count, 9)
+
+                # Selecting a tf.data pipeline from our DataBlob does not trigger
+                # an iteration over the pipeline. This means that the count is still 9.
+                cached_subtype_tf = getattr(cached, subtype)
+                self.assertEqual(cached.count, 9)
+
+                # The first iteration over a cached tf.data pipeline will still
+                # increment the counter. This is because tf.data caching isn't complete
+                # until the next pass over the entire dataset.
+                for _ in cached_subtype_tf:
+                    continue
+                self.assertEqual(cached.count, 12)
+
+                # Now that caching is complete, we expect the value to stay at 12.
+                for _ in cached_subtype_tf:
+                    continue
+                self.assertEqual(cached.count, 12)
+                for _ in cached_subtype_tf:
+                    continue
+                self.assertEqual(cached.count, 12)
+
+    def test_precache_training(self):
+        """Test CacheDataBlob precache_training=True."""
+        # Each iteration increments the count by 3 because the tf.data pipeline is not cached.
+        blob = DataBlobForCaching()
+
+        # We start at 0.
+        self.assertEqual(blob.count, 0)
+
+        # Generating the tf.data pipeline does not increment the count.
+        subtype_tf = getattr(blob, "training")
+        self.assertEqual(blob.count, 0)
+
+        # Each time we iterate over the tf.data pipeline, the count
+        # value goes up by 3. The counter should stop incrementing
+        # once we begin caching the pipeline.
+        for _ in subtype_tf:
+            continue
+        self.assertEqual(blob.count, 3)
+        for _ in subtype_tf:
+            continue
+        self.assertEqual(blob.count, 6)
+        for _ in subtype_tf:
+            continue
+        self.assertEqual(blob.count, 9)
+
+        # Set up the cached pipeline and verify everything is the same.
+        cached = blob.cache(
+            precache_training=True, precache_validation=False, precache_test=False
+        )
+        self.assertEqual(blob.name, cached.name)
+        self.assertEqual(blob.group_name, cached.group_name)
+        self.assertEqual(blob.hyperparams, cached.hyperparams)
+
+        # The count is where we last left it.
+        self.assertEqual(cached.count, 12)
+
+        # Selecting a tf.data pipeline from our DataBlob does not trigger
+        # an iteration over the pipeline. This means that the count is still 9.
+        cached_subtype_tf = getattr(cached, "training")
+        self.assertEqual(cached.count, 12)
+
+        # The first iteration over a cached tf.data pipeline will still
+        # increment the counter. This is because tf.data caching isn't complete
+        # until the next pass over the entire dataset.
+        for _ in cached_subtype_tf:
+            continue
+        self.assertEqual(cached.count, 12)
+
+        # Now that caching is complete, we expect the value to stay at 12.
+        for _ in cached_subtype_tf:
+            continue
+        self.assertEqual(cached.count, 12)
+        for _ in cached_subtype_tf:
+            continue
+        self.assertEqual(cached.count, 12)
+
+    def test_precache_all(self):
+        """Test CacheDataBlob precache True for training/validation/test."""
+        # Each iteration increments the count by 3 because the tf.data pipeline is not cached.
+        blob = DataBlobForCaching()
+        self.assertEqual(blob.count, 0)
+        for subtype in ["training", "validation", "test"]:
+            subtype_tf = getattr(blob, subtype)
+            for _ in subtype_tf:
                 continue
-            self.assertEqual(cached.count, 12)
-            for _ in getattr(cached, subtype):
+            for _ in subtype_tf:
                 continue
-            for _ in getattr(cached, subtype):
+        self.assertEqual(blob.count, 18)
+        # Set up the cached pipeline and verify everything is the same.
+        cached = blob.cache(
+            precache_training=True, precache_validation=True, precache_test=True
+        )
+        self.assertEqual(blob.name, cached.name)
+        self.assertEqual(blob.group_name, cached.group_name)
+        self.assertEqual(blob.hyperparams, cached.hyperparams)
+        # The training, validation, and test sets added 9 each. 9 + 18 brings us to 27.
+        self.assertEqual(cached.count, 27)
+        for subtype in ["training", "validation", "test"]:
+            cached_subtype_tf = getattr(cached, subtype)
+            # Now that caching is complete, we expect the value to stay at 27.
+            for _ in cached_subtype_tf:
                 continue
-            self.assertEqual(cached.count, 12)
+            self.assertEqual(cached.count, 27)
+            for _ in cached_subtype_tf:
+                continue
+            self.assertEqual(cached.count, 27)
 
 
 class Test_WithOptionsDataBlob(DataBlobTestCase):
