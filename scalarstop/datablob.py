@@ -337,9 +337,39 @@ class DataBlob(SingleNamespace):
             wraps=self, batch_size=batch_size, with_tf_distribute=with_tf_distribute
         )
 
-    def cache(self) -> "DataBlob":
-        """Cache this :py:class:`DataBlob` into memory before iterating over it."""
-        return _CacheDataBlob(wraps=self)
+    def cache(
+        self,
+        *,
+        precache_training: bool = False,
+        precache_validation: bool = False,
+        precache_test: bool = False,
+    ) -> "DataBlob":
+        """
+        Cache this :py:class:`DataBlob` into memory before iterating over it.
+
+        By default, this creates a :py:class:`DataBlob` containing a
+        TensorFlow ``CacheDataset`` for each of the training, validation and test
+        :py:class:`tf.data.Dataset` s.
+
+        But these datasets do not load into memory until the first time you
+        *completely* iterate over one--from start to end. If you want to
+        immediately load your training, validation, or test sets, you can
+        set the below arguments to ``True``:
+
+        Args:
+            precache_training: Eagerly cache the training set into memory.
+
+            precache_validation: Eagerly cache the validation set into
+                memory.
+
+            precache_test: Eagerly cache the test set into memory.
+        """
+        return _CacheDataBlob(
+            wraps=self,
+            precache_training=precache_training,
+            precache_validation=precache_validation,
+            precache_test=precache_test,
+        )
 
     def with_options(self, options: tf.data.Options) -> "DataBlob":
         """
@@ -947,10 +977,39 @@ class _BatchDataBlob(_WrapDataBlob):
         return tfdata.batch(self._final_batch_size)
 
 
+def _precache_tfdata(tfdata: tf.data.Dataset) -> tf.data.Dataset:
+    """Tensorflow CacheDatasets will internally cache themselves if you iterate
+    over them."""
+    for _ in tfdata:
+        continue
+    return tfdata
+
+
 class _CacheDataBlob(_WrapDataBlob):
     """
     Cache this :py:class:`DataBlob` in memory.
     """
+
+    def __init__(
+        self,
+        *,
+        wraps: Any,
+        precache_training: bool = False,
+        precache_validation: bool = False,
+        precache_test: bool = False,
+    ):
+        super().__init__(wraps=wraps)
+        self._precache_training = precache_training
+        self._precache_validation = precache_validation
+        self._precache_test = precache_test
+        if self._precache_training:
+            self._training = _precache_tfdata(self._wrap_tfdata(self._wraps.training))
+        if self._precache_validation:
+            self._validation = _precache_tfdata(
+                self._wrap_tfdata(self._wraps.validation)
+            )
+        if self._precache_test:
+            self._test = _precache_tfdata(self._wrap_tfdata(self._wraps.test))
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         return tfdata.cache()
