@@ -136,12 +136,12 @@ names and hyperparameters.
 
 """  # pylint: disable=line-too-long
 import json
-import logging
 import os
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 import tensorflow as tf
+from log_with_context import Logger
 
 from scalarstop._filesystem import rmtree
 from scalarstop._keras_callbacks import BatchLoggingCallback, EpochCallback
@@ -151,7 +151,7 @@ from scalarstop.model_template import ModelTemplate
 from scalarstop.train_store import TrainStore
 from scalarstop.warnings import warn
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = Logger(__name__)
 
 _HISTORY_FILENAME = "history.json"
 

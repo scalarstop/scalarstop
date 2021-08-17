@@ -27,7 +27,6 @@ attributes :py:attr:`TrainStore.engine`,
 """
 import dataclasses as _python_dataclasses
 import datetime
-import logging
 import sqlite3
 import urllib.parse
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
@@ -35,6 +34,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 import pandas as pd
 import sqlalchemy.dialects.postgresql
 import sqlalchemy.dialects.sqlite
+from log_with_context import Logger
 from sqlalchemy import JSON as default_JSON
 from sqlalchemy import (
     Column,
@@ -60,7 +60,7 @@ from scalarstop._datetime import utcnow
 from scalarstop.exceptions import SQLite_JSON_ModeDisabled
 from scalarstop.hyperparams import enforce_dict
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = Logger(__name__)
 
 _TABLE_NAME_PREFIX = "scalarstop__"
 

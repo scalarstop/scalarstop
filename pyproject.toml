@@ -15,6 +15,7 @@ numpy = "*"
 cloudpickle = "^1.6.0"
 SQLAlchemy = "^1.4.5"
 psycopg2-binary = "^2.8.6"
+log-with-context = "*"
 
 # These are optional dependencies installed
 # with pip extras. Seee the `tool.poetry.extras` section for more.
