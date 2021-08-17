@@ -13,6 +13,15 @@ class ScalarStopException(Exception):
     """
 
 
+class InconsistentCachingParameters(ValueError, ScalarStopException):
+    """
+    Raised when DataBlob.cache() is set with inconsistent parameters.
+
+    An example of setting inconsistent parameters is when the user says
+    ``training=False`` and ``preload_training=True``.
+    """
+
+
 class YouForgotTheHyperparams(ValueError, ScalarStopException):
     """Raised when the user creates a class, but forgets to add a nested Hyperparams class."""
 
