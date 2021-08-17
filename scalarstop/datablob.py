@@ -18,9 +18,11 @@ from typing import Any, Mapping, Optional, Type, Union
 
 import pandas as pd
 import tensorflow as tf
+from log_with_context import Logger
 
 import scalarstop.pickle
 from scalarstop._filesystem import rmtree
+from scalarstop._logging import Timeblock
 from scalarstop._naming import temporary_filename
 from scalarstop._single_namespace import SingleNamespace
 from scalarstop.dataclasses import asdict
@@ -39,6 +41,8 @@ from scalarstop.hyperparams import (
     NestedHyperparamsType,
     enforce_dict,
 )
+
+_LOGGER = Logger(__name__)
 
 _METADATA_JSON_FILENAME = "metadata.json"
 _METADATA_PICKLE_FILENAME = "metadata.pickle"
@@ -1116,14 +1120,28 @@ class _CacheDataBlob(_WrapDataBlob):
         self._precache_training = precache_training
         self._precache_validation = precache_validation
         self._precache_test = precache_test
+
         if self._precache_training:
-            self._training = _precache_tfdata(self._wrap_tfdata(self._wraps.training))
+            with Timeblock(
+                name=f"(pre)caching {self.name}/training", print_function=_LOGGER.info
+            ):
+                self._training = _precache_tfdata(
+                    self._wrap_tfdata(self._wraps.training)
+                )
+
         if self._precache_validation:
-            self._validation = _precache_tfdata(
-                self._wrap_tfdata(self._wraps.validation)
-            )
+            with Timeblock(
+                name=f"(pre)caching {self.name}/validation", print_function=_LOGGER.info
+            ):
+                self._validation = _precache_tfdata(
+                    self._wrap_tfdata(self._wraps.validation)
+                )
+
         if self._precache_test:
-            self._test = _precache_tfdata(self._wrap_tfdata(self._wraps.test))
+            with Timeblock(
+                name=f"(pre)caching {self.name}/validation", print_function=_LOGGER.info
+            ):
+                self._test = _precache_tfdata(self._wrap_tfdata(self._wraps.test))
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         return tfdata.cache()
