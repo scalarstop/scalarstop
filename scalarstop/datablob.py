@@ -29,6 +29,7 @@ from scalarstop.exceptions import (
     ElementSpecNotFound,
     FileExists,
     FileExistsDuringDataBlobCreation,
+    InconsistentCachingParameters,
     IsNotImplemented,
     TensorFlowDatasetNotFound,
 )
@@ -331,15 +332,48 @@ class DataBlob(SingleNamespace):
             self._test = self.set_test()
         return self._test
 
-    def batch(self, batch_size: int, *, with_tf_distribute: bool = False) -> "DataBlob":
-        """Batch this :py:class:`DataBlob`."""
+    def batch(
+        self,
+        batch_size: int,
+        *,
+        training: bool = True,
+        validation: bool = True,
+        test: bool = True,
+        with_tf_distribute: bool = False,
+    ) -> "DataBlob":
+        """
+        Batch this :py:class:`DataBlob`.
+
+        Args:
+            batch_size: The number of items to collect into a batch.
+
+            training: Whether to batch the training set.
+                Defaults to ``True``.
+
+            validation: Whether to batch the validation set.
+                Defaults to ``True``.
+
+            test: Whether to batch the test set. Defaults to ``True``.
+
+            with_tf_distribute: Whether to consider ``tf.distribute``
+                auto-data sharding when calculating the batch size.
+
+        """
         return _BatchDataBlob(
-            wraps=self, batch_size=batch_size, with_tf_distribute=with_tf_distribute
+            wraps=self,
+            batch_size=batch_size,
+            training=training,
+            validation=validation,
+            test=test,
+            with_tf_distribute=with_tf_distribute,
         )
 
     def cache(
         self,
         *,
+        training: bool = True,
+        validation: bool = True,
+        test: bool = True,
         precache_training: bool = False,
         precache_validation: bool = False,
         precache_test: bool = False,
@@ -354,28 +388,65 @@ class DataBlob(SingleNamespace):
         But these datasets do not load into memory until the first time you
         *completely* iterate over one--from start to end. If you want to
         immediately load your training, validation, or test sets, you can
-        set the below arguments to ``True``:
+        set ``precache_training``, ``precache_validation``, and/or
+        ``precache_test`` to ``True``.
 
         Args:
+            training: Lazily cache the training set in CPU memory.
+                Defaults to ``True``.
+
+            validation: Lazily cache the validation set in CPU memory.
+                Defaults to ``True``.
+
+            test: Lazily cache the test set in CPU memory.
+                Defaults to ``True``.
+
             precache_training: Eagerly cache the training set into memory.
+                Defaults to ``False``.
 
             precache_validation: Eagerly cache the validation set into
-                memory.
+                memory. Defaults to ``False``.
 
             precache_test: Eagerly cache the test set into memory.
+                Defaults to ``False``.
         """
         return _CacheDataBlob(
             wraps=self,
+            training=training,
+            validation=validation,
+            test=test,
             precache_training=precache_training,
             precache_validation=precache_validation,
             precache_test=precache_test,
         )
 
-    def with_options(self, options: tf.data.Options) -> "DataBlob":
+    def with_options(
+        self,
+        options: tf.data.Options,
+        *,
+        training: bool = True,
+        validation: bool = True,
+        test: bool = True,
+    ) -> "DataBlob":
         """
         Apply a :py:class:`tf.data.Options` object to this :py:class:`DataBlob`.
+
+        Args:
+            options: The :py:class:`tf.data.Options` object to apply.
+
+            training: Apply the options to the training set. Defaults to ``True``.
+
+            validation: Apply the options to the validation set. Defaults to ``True``.
+
+            Test: Apply the options to the test set. Defaults to ``True``.
         """
-        return _WithOptionsDataBlob(wraps=self, options=options)
+        return _WithOptionsDataBlob(
+            wraps=self,
+            options=options,
+            training=training,
+            validation=validation,
+            test=test,
+        )
 
     def save_hook(  # pylint: disable=unused-argument
         self, *, subtype: str, path: str
@@ -711,12 +782,17 @@ class _WrapDataBlob(DataBlob):
     # We do not call super().__init__() because that call would be affected
     # by our custom __getattribute__(). Thankfully, our __getattribute__()
     # takes care of any setup that super().__init__() would handle.
-    def __init__(self, wraps: DataBlob):  # pylint: disable=super-init-not-called
+    def __init__(
+        self, wraps: DataBlob, *, training: bool, validation: bool, test: bool
+    ):  # pylint: disable=super-init-not-called
         self._wraps = wraps
         self.Hyperparams = self._wraps.Hyperparams
         self.hyperparams = self._wraps.hyperparams
         self._name = wraps.name
         self._group_name = wraps.group_name
+        self._enable_training = training
+        self._enable_validation = validation
+        self._enable_test = test
 
     def __getattribute__(self, key: str):
         """
@@ -735,33 +811,39 @@ class _WrapDataBlob(DataBlob):
         raise IsNotImplemented("_WrapDataBlob._wrap_tfdata()")
 
     def set_training(self) -> tf.data.Dataset:
-        return self._wrap_tfdata(self._wraps.set_training())
+        if self._enable_training:
+            return self._wrap_tfdata(self._wraps.set_training())
+        return self._wraps.set_training()
 
     @property
     def training(self) -> tf.data.Dataset:
         """An instance of the training set tf.data."""
         if self._training is None:
-            self._training = self._wrap_tfdata(self._wraps.training)
+            self._training = self.set_training()
         return self._training
 
     def set_validation(self) -> tf.data.Dataset:
-        return self._wrap_tfdata(self._wraps.set_validation())
+        if self._enable_validation:
+            return self._wrap_tfdata(self._wraps.set_validation())
+        return self._wraps.set_validation()
 
     @property
     def validation(self) -> tf.data.Dataset:
         """An instance of the validation set tf.data."""
         if self._validation is None:
-            self._validation = self._wrap_tfdata(self._wraps.validation)
+            self._validation = self.set_validation()
         return self._validation
 
     def set_test(self) -> tf.data.Dataset:
-        return self._wrap_tfdata(self._wraps.set_test())
+        if self._enable_test:
+            return self._wrap_tfdata(self._wraps.set_test())
+        return self._wraps.set_test()
 
     @property
     def test(self) -> tf.data.Dataset:
         """An instance of the test set tf.data."""
         if self._test is None:
-            self._test = self._wrap_tfdata(self._wraps.test)
+            self._test = self.set_test()
         return self._test
 
     def save_hook(self, *, subtype: str, path: str) -> None:
@@ -955,9 +1037,18 @@ class _BatchDataBlob(_WrapDataBlob):
     """
 
     def __init__(
-        self, *, wraps: Any, batch_size: int, with_tf_distribute: bool = False
+        self,
+        *,
+        wraps: Any,
+        batch_size: int,
+        training: bool,
+        validation: bool,
+        test: bool,
+        with_tf_distribute: bool = False,
     ):
-        super().__init__(wraps=wraps)
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
         self._input_batch_size = batch_size
         self._with_tf_distribute = with_tf_distribute
         if self._with_tf_distribute:
@@ -994,11 +1085,34 @@ class _CacheDataBlob(_WrapDataBlob):
         self,
         *,
         wraps: Any,
-        precache_training: bool = False,
-        precache_validation: bool = False,
-        precache_test: bool = False,
+        training: bool,
+        validation: bool,
+        test: bool,
+        precache_training: bool,
+        precache_validation: bool,
+        precache_test: bool,
     ):
-        super().__init__(wraps=wraps)
+        if training is False and precache_training is True:
+            raise InconsistentCachingParameters(
+                "You cannot pass `training=False` and `precache_training=True` "
+                "to `DataBlob.cache()`. If you want `precache_training=True`, "
+                "then set `training=True`, which it is by default."
+            )
+        if validation is False and precache_validation is True:
+            raise InconsistentCachingParameters(
+                "You cannot pass `validation=False` and `precache_validation=True` "
+                "to `DataBlob.cache()`. If you want `precache_validation=True`, "
+                "then set `validation=True`, which it is by default."
+            )
+        if test is False and precache_test is True:
+            raise InconsistentCachingParameters(
+                "You cannot pass `test=False` and `precache_test=True` "
+                "to `DataBlob.cache()`. If you want `precache_test=True`, "
+                "then set `test=True`, which it is by default."
+            )
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
         self._precache_training = precache_training
         self._precache_validation = precache_validation
         self._precache_test = precache_test
@@ -1025,8 +1139,13 @@ class _WithOptionsDataBlob(_WrapDataBlob):
         *,
         wraps: Any,
         options: tf.data.Options,
+        training: bool,
+        validation: bool,
+        test: bool,
     ):
-        super().__init__(wraps=wraps)
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
         self._tfdata_options = options
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:

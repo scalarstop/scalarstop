@@ -21,6 +21,7 @@ from tests.assertions import (
     assert_dataframes_are_equal,
     assert_directory,
     assert_hyperparams_are_equal,
+    tfdata_get_first_shape_len,
 )
 
 
@@ -562,7 +563,9 @@ class Test_WrapDataBlob(DataBlobTestCase):
         Test that :py:class:`_WrapDataBlob` methods are not
         implemented until overridden.
         """
-        wrapped = sp.datablob._WrapDataBlob(wraps=MyDataBlob())
+        wrapped = sp.datablob._WrapDataBlob(
+            wraps=MyDataBlob(), training=True, validation=True, test=True
+        )
         not_implemented_methods = [
             "set_training",
             "set_validation",
@@ -610,6 +613,32 @@ class Test_BatchDataBlob(DataBlobTestCase):
         input_batch_size = 2
         batched = MyDataBlob().batch(input_batch_size, with_tf_distribute=True)
         self.assertEqual(num_replicas * input_batch_size, batched.batch_size)
+
+    def test_selectively_disabling_batch(self):
+        """Test that training/validation/test=False disables batching."""
+        datablob = MyDataBlob()
+        self.assertEqual(tfdata_get_first_shape_len(datablob.training), 0)
+        self.assertEqual(tfdata_get_first_shape_len(datablob.validation), 0)
+        self.assertEqual(tfdata_get_first_shape_len(datablob.test), 0)
+
+        batched_training = datablob.batch(2, validation=False, test=False)
+        self.assertEqual(tfdata_get_first_shape_len(batched_training.training), 1)
+        self.assertEqual(tfdata_get_first_shape_len(batched_training.validation), 0)
+        self.assertEqual(tfdata_get_first_shape_len(batched_training.test), 0)
+
+        batched_training_and_val = batched_training.batch(2, test=False)
+        self.assertEqual(
+            tfdata_get_first_shape_len(batched_training_and_val.training), 2
+        )
+        self.assertEqual(
+            tfdata_get_first_shape_len(batched_training_and_val.validation), 1
+        )
+        self.assertEqual(tfdata_get_first_shape_len(batched_training_and_val.test), 0)
+
+        batched_val_and_test = batched_training_and_val.batch(2, training=False)
+        self.assertEqual(tfdata_get_first_shape_len(batched_val_and_test.training), 2)
+        self.assertEqual(tfdata_get_first_shape_len(batched_val_and_test.validation), 2)
+        self.assertEqual(tfdata_get_first_shape_len(batched_val_and_test.test), 1)
 
 
 class Test_CacheDataBlob(DataBlobTestCase):
@@ -670,6 +699,44 @@ class Test_CacheDataBlob(DataBlobTestCase):
                 for _ in cached_subtype_tf:
                     continue
                 self.assertEqual(cached.count, 12)
+
+    def test_selectively_disable_caching(self):
+        """Test that training=False disables caching on the training set, and so forth."""
+        cached = DataBlobForCaching().cache(
+            training=False, precache_validation=True, precache_test=True
+        )
+        # the count is 6 because precaching the validation and test sets incremented
+        # the counter.
+        self.assertEqual(cached.count, 6)
+
+        # The training set is not cached, so our count increments by another 3.
+        for _ in cached.training:
+            continue
+        self.assertEqual(cached.count, 9)
+
+        # The validation and test sets have been precached,
+        # so they will no longer increment the count.
+        for _ in cached.validation:
+            continue
+        self.assertEqual(cached.count, 9)
+        for _ in cached.test:
+            continue
+        self.assertEqual(cached.count, 9)
+        for _ in cached.validation:
+            continue
+        self.assertEqual(cached.count, 9)
+        for _ in cached.test:
+            continue
+        self.assertEqual(cached.count, 9)
+
+        # But because we have not cached the training set, the count
+        # will continue to increment every time we iterate over iut.
+        for _ in cached.training:
+            continue
+        self.assertEqual(cached.count, 12)
+        for _ in cached.training:
+            continue
+        self.assertEqual(cached.count, 15)
 
     def test_precache_training(self):
         """Test CacheDataBlob precache_training=True."""
@@ -758,24 +825,38 @@ class Test_CacheDataBlob(DataBlobTestCase):
                 continue
             self.assertEqual(cached.count, 27)
 
+    def test_inconsistent_caching_parameters(self):
+        """Test that we raise an exception when caching parameters don't make sense."""
+        blob = DataBlobForCaching()
+        with self.assertRaises(sp.exceptions.InconsistentCachingParameters):
+            blob.cache(training=False, precache_training=True)
+        with self.assertRaises(sp.exceptions.InconsistentCachingParameters):
+            blob.cache(validation=False, precache_validation=True)
+        with self.assertRaises(sp.exceptions.InconsistentCachingParameters):
+            blob.cache(test=False, precache_test=True)
+
 
 class Test_WithOptionsDataBlob(DataBlobTestCase):
     """Tests for _WithOptionsDataBlob."""
+
+    def setUp(self):
+        self.tf_options = tf.data.Options()
+        self.tf_options.experimental_distribute.auto_shard_policy = (
+            tf.data.experimental.AutoShardPolicy.DATA
+        )
 
     def test_success(self):
         """Test that setting options works."""
         blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
         # Check that the auto sharding polciy is AUTO by default.
-        self.assertEqual(
-            blob.training.options().experimental_distribute.auto_shard_policy,
-            tf.data.experimental.AutoShardPolicy.AUTO,
-        )
+        for subtype in ["training", "validation", "test"]:
+            tfdata = getattr(blob, subtype)
+            self.assertEqual(
+                tfdata.options().experimental_distribute.auto_shard_policy,
+                tf.data.experimental.AutoShardPolicy.AUTO,
+            )
         # Try setting the AutoShardPolicy to DATA.
-        options = tf.data.Options()
-        options.experimental_distribute.auto_shard_policy = (
-            tf.data.experimental.AutoShardPolicy.DATA
-        )
-        blob_with_options = blob.with_options(options)
+        blob_with_options = blob.with_options(self.tf_options)
 
         # Check that the sharding policy has been properly applied.
         for subtype in ["training", "validation", "test"]:
@@ -785,6 +866,30 @@ class Test_WithOptionsDataBlob(DataBlobTestCase):
                     tfdata.options().experimental_distribute.auto_shard_policy,
                     tf.data.experimental.AutoShardPolicy.DATA,
                 )
+
+    def test_selectively_disabling_options(self):
+        """test that training/validation/test=False disables setting tf.data.Options."""
+        # Let's try setting optiosn on the training and test sets,
+        # but not the validation set.
+        AUTO = tf.data.experimental.AutoShardPolicy.AUTO
+        DATA = tf.data.experimental.AutoShardPolicy.DATA
+        blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        blob_w_options = blob.with_options(
+            self.tf_options,
+            validation=False,
+        )
+        self.assertEqual(
+            blob_w_options.training.options().experimental_distribute.auto_shard_policy,
+            DATA,
+        )
+        self.assertEqual(
+            blob_w_options.validation.options().experimental_distribute.auto_shard_policy,
+            AUTO,
+        )
+        self.assertEqual(
+            blob_w_options.test.options().experimental_distribute.auto_shard_policy,
+            DATA,
+        )
 
 
 class TestDataFrameDataBlob(DataBlobTestCase):

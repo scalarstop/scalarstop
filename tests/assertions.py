@@ -14,6 +14,17 @@ _TESTCASE = unittest.TestCase()
 assert_equal = _TESTCASE.assertEqual
 
 
+def tfdata_get_first(tfdata: tf.data.Dataset) -> tf.Tensor:
+    """Get the first element in a tf.data.Dataset."""
+    for first in tfdata.take(1):
+        return first
+
+
+def tfdata_get_first_shape_len(tfdata: tf.data.Dataset) -> int:
+    """Get the length of the TensorShape of the first element in a tf.data.Dataset."""
+    return len(tfdata_get_first(tfdata).shape)
+
+
 def assert_directory(dirname: str, expected_filenames: List[str]):
     """Assert the contents of an arbitrary directory on disk."""
     actual_filenames = os.listdir(dirname)
