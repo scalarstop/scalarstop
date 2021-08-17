@@ -438,7 +438,7 @@ class DataBlob(SingleNamespace):
 
             validation: Apply the options to the validation set. Defaults to ``True``.
 
-            Test: Apply the options to the test set. Defaults to ``True``.
+            test: Apply the options to the test set. Defaults to ``True``.
         """
         return _WithOptionsDataBlob(
             wraps=self,
