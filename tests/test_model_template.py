@@ -57,20 +57,6 @@ class TestModelTemplate(unittest.TestCase):
                     sp.dataclasses.asdict(model_template.hyperparams), dict(a=1, b="hi")
                 )
 
-    def test_no_hyperparams(self):
-        """
-        Test the error when a ModelTemplate has required hyperparams
-        and we don't specify them.
-        """
-        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
-            MyModelTemplate()
-
-    def test_unnecessary_hyperparams(self):
-        """Test what happens when we pass unnecessary hyperparams to a ModelTemplate."""
-
-        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
-            MyModelTemplate(hyperparams=dict(a=1, b="hi", c=3))
-
     def test_missing_hyperparams_class(self):
         """Test what happens when the hyperparams class itself is missing."""
         with self.assertRaises(sp.exceptions.YouForgotTheHyperparams):

@@ -5,11 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, Mapping
 
 from scalarstop._naming import hash_id
 from scalarstop.dataclasses import asdict, is_dataclass
-from scalarstop.exceptions import (
-    WrongHyperparamsKeys,
-    WrongHyperparamsType,
-    YouForgotTheHyperparams,
-)
+from scalarstop.exceptions import WrongHyperparamsType, YouForgotTheHyperparams
 
 if TYPE_CHECKING:
     from dataclasses import dataclass
@@ -40,21 +36,11 @@ def init_hyperparams(*, class_name: str, hyperparams, hyperparams_class) -> Any:
     """
     if isinstance(hyperparams_class, type) and is_dataclass(hyperparams_class):
         if hyperparams is None:
-            try:
-                return hyperparams_class()
-            except (TypeError, ValueError, SyntaxError) as exc:
-                raise WrongHyperparamsKeys(
-                    hyperparams=hyperparams, hyperparams_class=hyperparams_class
-                ) from exc
+            return hyperparams_class()
         if isinstance(hyperparams, hyperparams_class):
             return hyperparams
         if isinstance(hyperparams, Mapping):
-            try:
-                return hyperparams_class(**hyperparams)
-            except (TypeError, ValueError, SyntaxError) as exc:
-                raise WrongHyperparamsKeys(
-                    hyperparams=hyperparams, hyperparams_class=hyperparams_class
-                ) from exc
+            return hyperparams_class(**hyperparams)
         raise WrongHyperparamsType(hyperparams=hyperparams, class_name=class_name)
     raise YouForgotTheHyperparams(class_name=class_name)
 
