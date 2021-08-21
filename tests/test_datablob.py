@@ -368,16 +368,6 @@ class TestDataBlob(DataBlobTestCase):
         self.assertEqual(blob1.group_name, blob2.group_name)
         self.assertEqual(blob1.group_name, blob3.group_name)
 
-    def test_no_hyperparams(self):
-        """Test the error when a DataBlob has required hyperparams and we don't specify them."""
-        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
-            MyDataBlobRequiredHyperparams()
-
-    def test_unnecessary_hyperparams(self):
-        """Test what happens when we pass unnecessary hyperparams to a DataBlob."""
-        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
-            MyDataBlob(hyperparams=dict(z=3))
-
     def test_missing_hyperparams_class(self):
         """Test what happens when the hyperparams class itself is missing."""
         with self.assertRaises(sp.exceptions.YouForgotTheHyperparams):
@@ -1075,22 +1065,6 @@ class TestAppendDataBlob(unittest.TestCase):
                     append_value = append_tensor.numpy()
                     self.assertEqual(idx, append_tensor_idx)
                     self.assertEqual(parent_value, append_value)
-
-    def test_no_hyperparams(self):
-        """Test AppendDataBlob without hyperparams."""
-        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
-        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
-            MyAppendDataBlob(parent=parent, secret2="secret2")
-
-    def test_unnecessary_hyperparams(self):
-        """Test AppendDataBlob with unnecessary hyperparameters."""
-        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
-        with self.assertRaises(sp.exceptions.WrongHyperparamsKeys):
-            MyAppendDataBlob(
-                parent=parent,
-                hyperparams=dict(coefficient=10, unnecessary=1),
-                secret2="secret2",
-            )
 
     def test_with_dataframe(self):
         """Test that an AppendDataBlob can inherit from a DataFrameDataBlob."""

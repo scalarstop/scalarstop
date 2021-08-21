@@ -46,18 +46,6 @@ class WrongHyperparamsType(TypeError, ScalarStopException):
         )
 
 
-class WrongHyperparamsKeys(TypeError, ScalarStopException):
-    """Raised when the user has passed extra or missing keys for constructing hyperparams."""
-
-    def __init__(self, hyperparams: Any, hyperparams_class: type):
-        hyperparams_class_fields = [field.name for field in fields(hyperparams_class)]
-        super().__init__(
-            "Wrong keys passed to create hyperparams. "
-            f"Valid keys include {hyperparams_class_fields}. "
-            f"The object you passed is: {hyperparams}"
-        )
-
-
 class DataBlobNotFound(FileNotFoundError, ScalarStopException):
     """
     Raised when we cannot load a :py:class:`DataBlob`
