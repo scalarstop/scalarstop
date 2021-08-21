@@ -356,7 +356,7 @@ class KerasModel(Model):
         # Try to load the history.
         history_path = os.path.join(model_path, _HISTORY_FILENAME)
         try:
-            with open(history_path, "r") as fh:
+            with open(history_path, "r", encoding="utf-8") as fh:
                 history = json.load(fh)
         except FileNotFoundError:
             warn(
@@ -383,7 +383,7 @@ class KerasModel(Model):
     ):
         super().__init__(datablob=datablob, model_template=model_template, model=model)
 
-        self._history: Dict[str, List[float]] = history or dict()
+        self._history: Dict[str, List[float]] = history or {}
 
         # If the model does not have a valid input shape, then we build it
         # with the DataBlob training element_spec.
@@ -421,7 +421,7 @@ class KerasModel(Model):
                 save_format="tf",
             )
             history_path = os.path.join(model_path, _HISTORY_FILENAME)
-            with open(history_path, "w") as fp:
+            with open(history_path, "w", encoding="utf-8") as fp:
                 json.dump(
                     obj=self.history,
                     fp=fp,

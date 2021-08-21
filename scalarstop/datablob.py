@@ -494,7 +494,7 @@ class DataBlob(SingleNamespace):
             metadata_json_path = os.path.join(
                 temp_datablob_path, _METADATA_JSON_FILENAME
             )
-            with open(metadata_json_path, "w") as fh:
+            with open(metadata_json_path, "w", encoding="utf-8") as fh:
                 json.dump(
                     obj=dict(
                         name=self.name,
@@ -544,7 +544,7 @@ class DataBlob(SingleNamespace):
                 # Save additional elements that subclasses want to save.
                 self.save_hook(subtype=subtype, path=subtype_path)
 
-        except BaseException as exc:
+        except BaseException:
             # If we run into an error, delete our partially constructed dataset
             # from the filesystem.
             rmtree(temp_datablob_path)

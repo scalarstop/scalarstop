@@ -37,7 +37,7 @@ class TestDataclass(unittest.TestCase):
         """Test that the dataclasses library doesn't work on cloudpickle'd dataclasses."""
         self.assertEqual(dataclasses.fields(self.dc), ())
         self.assertEqual(dataclasses.astuple(self.dc), ())
-        self.assertEqual(dataclasses.asdict(self.dc), dict())
+        self.assertEqual(dataclasses.asdict(self.dc), {})
 
     def test_our_code_works(self):
         """Test that our versions of dataclasses code does work."""
