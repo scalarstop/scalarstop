@@ -16,7 +16,7 @@ else:
 def enforce_dict(hyperparams: Any) -> Dict[Any, Any]:
     """Convert the input into a dictionary, whether it is a dataclass or not."""
     if hyperparams is None:
-        return dict()
+        return {}
     if isinstance(hyperparams, dict):
         return hyperparams
     try:

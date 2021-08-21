@@ -4,8 +4,6 @@ Every custom ScalarStop exception.
 
 from typing import Any
 
-from scalarstop.dataclasses import fields
-
 
 class ScalarStopException(Exception):
     """

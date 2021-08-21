@@ -119,9 +119,7 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
                 model_template=self.model_template,
                 models_directory=self.models_directory,
             )
-        assert_model_after_fit(
-            return_value=dict(), model=loaded_model, expected_epochs=0
-        )
+        assert_model_after_fit(return_value={}, model=loaded_model, expected_epochs=0)
 
     def test_model_already_trained(self):
         """
@@ -130,7 +128,7 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
         """
         # Assert that the model has not been trained.
         assert_model_after_fit(
-            return_value=dict(), model=self.keras_model, expected_epochs=0
+            return_value={}, model=self.keras_model, expected_epochs=0
         )
 
         # Train for 3 epochs.
@@ -211,8 +209,8 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
             model_template=self.model_template,
             models_directory=self.models_directory,
         )
-        assert_model_after_fit(return_value=dict(), model=model1, expected_epochs=0)
-        assert_model_after_fit(return_value=dict(), model=model2, expected_epochs=0)
+        assert_model_after_fit(return_value={}, model=model1, expected_epochs=0)
+        assert_model_after_fit(return_value={}, model=model2, expected_epochs=0)
         assert_spkeras_models_are_equal(model1, model2)
 
         # Assert that we have no saved models.
@@ -225,7 +223,7 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
         assert_directory(self.models_directory, [model1.name])
 
         # Assert that our other model has been unchanged.
-        assert_model_after_fit(return_value=dict(), model=model2, expected_epochs=0)
+        assert_model_after_fit(return_value={}, model=model2, expected_epochs=0)
 
         # Create a new model. This time it should be loaded from the filesystem.
         model3 = sp.KerasModel.from_filesystem_or_new(

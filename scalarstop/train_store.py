@@ -1190,7 +1190,7 @@ class TrainStore:
             current_epoch = dict(
                 model_epoch_num=model_epoch_num,
                 model_name=model.name,
-                model_epoch_metrics=dict(),
+                model_epoch_metrics={},
             )
             for metric_name, metric_values in model.history.items():
                 try:

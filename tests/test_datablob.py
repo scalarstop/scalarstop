@@ -115,7 +115,9 @@ class DataBlobWillCauseDirectoryNotEmpty(MyDataBlob):
             # the directory to make sure that we can't copy into the
             # directory without triggering an error.
             os.mkdir(this_dataset_path)
-            with open(os.path.join(this_dataset_path, "training"), "w"):
+            with open(
+                os.path.join(this_dataset_path, "training"), "w", encoding="utf-8"
+            ):
                 pass
 
 
@@ -134,7 +136,7 @@ class DataBlobWillCauseNotADirectoryError(MyDataBlob):
         if subtype == "training":
             datablobs_directory = os.path.dirname(os.path.dirname(path))
             this_dataset_path = os.path.join(datablobs_directory, self.name)
-            with open(os.path.join(this_dataset_path), "w"):
+            with open(os.path.join(this_dataset_path), "w", encoding="utf-8"):
                 pass
 
 
@@ -259,7 +261,7 @@ class DataBlobTestCase(unittest.TestCase):
             group_name=blob.group_name,
             hyperparams=sp.dataclasses.asdict(blob.hyperparams),
         )
-        with open(filename, "r") as fh:
+        with open(filename, "r", encoding="utf-8") as fh:
             actual = json.load(fh)
         self.assertEqual(expected, actual)
 
@@ -510,7 +512,7 @@ class TestDataBlob(DataBlobTestCase):
         """Test loading the dataset after cache and or save."""
         with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
-                cache=dict(),
+                cache={},
                 save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
@@ -530,7 +532,7 @@ class TestDataBlob(DataBlobTestCase):
         with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
                 batch=dict(batch_size=2),
-                cache=dict(),
+                cache={},
                 save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
@@ -947,7 +949,7 @@ class TestDataFrameDataBlob(DataBlobTestCase):
         """Test loading the dataset after cache and or save."""
         with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
-                cache=dict(),
+                cache={},
                 save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
@@ -968,7 +970,7 @@ class TestDataFrameDataBlob(DataBlobTestCase):
         with tempfile.TemporaryDirectory() as datablobs_directory:
             operations = dict(
                 batch=dict(batch_size=2),
-                cache=dict(),
+                cache={},
                 save=dict(datablobs_directory=datablobs_directory),
             )
             for idx, sequence in enumerate(itertools.permutations(operations.items())):
