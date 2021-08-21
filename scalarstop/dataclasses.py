@@ -31,7 +31,7 @@ _FIELD_INITVAR = "_FIELD_INITVAR"
 # objects.  Also used to check if a class is a Data Class.
 _FIELDS = "__dataclass_fields__"
 
-dataclass = _python_dataclasses.dataclass(frozen=True)
+dataclass = _python_dataclasses.dataclass
 
 
 def is_dataclass(obj: Any) -> bool:
