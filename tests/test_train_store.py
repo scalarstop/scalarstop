@@ -193,7 +193,7 @@ class TrainStoreUnits:  # pylint: disable=no-member
         # with the same name and epoch number.
         with self.assertRaises(IntegrityError):
             self.train_store.insert_model_epoch(
-                model_name=self.model.name, epoch_num=0, metrics=dict()
+                model_name=self.model.name, epoch_num=0, metrics={}
             )
 
         # Assert that we can suppress that exception.
