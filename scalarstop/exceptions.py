@@ -2,7 +2,7 @@
 Every custom ScalarStop exception.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 
 class ScalarStopException(Exception):
@@ -144,3 +144,39 @@ class SQLite_JSON_ModeDisabled(RuntimeError, ScalarStopException):
             "database, but we could not find the SQLite JSON1 "
             "extension in your Python installation."
         )
+
+
+class UnsupportedDataBlobSaveLoadVersion(ScalarStopException):
+    """Raised when we don't recognize the Load/Save version number."""
+
+    def __init__(self, *, version: int):
+        super().__init__(
+            f"The DataBlob Load/Save version `{version}` is unsupported in this "
+            "version of ScalarStop."
+        )
+
+
+class DataBlobShardingNotSupported(ScalarStopException):
+    """
+    Raised when the user tries to shard a saved DataBlob
+    and the Load/Save version is too old.
+    """
+
+    def __init__(
+        self,
+        *,
+        version: int,
+        offset: Optional[int],
+        quantity: int,
+        total_num_shards: int,
+    ):
+        super().__init__(
+            "Reading saved DataBlobs by shard is not supported "
+            f"in this DataBlob Load/Save {version=}. "
+            f"You requested sharding parameters "
+            f"{offset=} {quantity=} {total_num_shards=}."
+        )
+
+
+class DataBlobShardingValueError(ValueError, ScalarStopException):
+    """Raised when sharding parameters are not correct."""

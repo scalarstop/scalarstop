@@ -21,10 +21,21 @@ import tensorflow as tf
 from log_with_context import Logger
 
 import scalarstop.pickle
+from scalarstop._constants import (
+    _DATAFRAME_FILENAME,
+    _DEFAULT_SAVE_LOAD_VERSION,
+    _METADATA_JSON_FILENAME,
+    _METADATA_PICKLE_FILENAME,
+    _SUBTYPE_TEST,
+    _SUBTYPE_TRAINING,
+    _SUBTYPE_VALIDATION,
+    _SUBTYPES,
+)
 from scalarstop._filesystem import rmtree
 from scalarstop._logging import Timeblock
 from scalarstop._naming import temporary_filename
 from scalarstop._single_namespace import SingleNamespace
+from scalarstop._tfdata import tfdata_load, tfdata_save
 from scalarstop.dataclasses import asdict
 from scalarstop.exceptions import (
     DataBlobNotFound,
@@ -43,60 +54,6 @@ from scalarstop.hyperparams import (
 )
 
 _LOGGER = Logger(__name__)
-
-_METADATA_JSON_FILENAME = "metadata.json"
-_METADATA_PICKLE_FILENAME = "metadata.pickle"
-_ELEMENT_SPEC_FILENAME = "element_spec.pickle"
-_DATAFRAME_FILENAME = "dataframe.pickle.gz"
-_SUBTYPE_TRAINING = "training"
-_SUBTYPE_VALIDATION = "validation"
-_SUBTYPE_TEST = "test"
-_TFDATA_DIRECTORY_NAME = "tfdata"
-_SUBTYPES = (_SUBTYPE_TRAINING, _SUBTYPE_VALIDATION, _SUBTYPE_TEST)
-
-
-def _load_tfdata_dataset(path, element_spec=None) -> tf.data.Dataset:
-    """
-    Load a :py:class:`tf.data.Dataset` from a filesystem path.
-
-    This is a little different from
-    :py:func:`tf.data.experimental.load` because we save the
-    `element_spec` in a pickled file above the
-    :py:class:`tf.data.Dataset` 's directory.
-
-    If you want to read a dataset that doesn't have the
-    ``element_spec`` saved on disk, then just specify
-    the ``element_spec`` keyword argument with your own value.
-    """
-    # Load the element spec.
-    if element_spec is None:
-        element_spec_path = os.path.join(path, _ELEMENT_SPEC_FILENAME)
-        try:
-            with open(element_spec_path, "rb") as fp:
-                element_spec = scalarstop.pickle.load(file=fp)
-        except FileNotFoundError as exc:
-            raise ElementSpecNotFound(path) from exc
-
-    # Load the tf.data Dataset.
-    tfdata_path = os.path.join(path, _TFDATA_DIRECTORY_NAME)
-    try:
-        loaded_tfdata = tf.data.experimental.load(
-            path=tfdata_path,
-            element_spec=element_spec,
-        )
-    except tf.errors.NotFoundError as exc:
-        raise TensorFlowDatasetNotFound(tfdata_path) from exc
-
-    # Select the DATA sharding policy. This typically works better because
-    # ScalarStop does not currently focus on saving DataBlobs with the
-    # FILE sharing policy.
-    options = tf.data.Options()
-    options.experimental_distribute.auto_shard_policy = (
-        tf.data.experimental.AutoShardPolicy.DATA
-    )
-    loaded_tfdata = loaded_tfdata.with_options(options)
-
-    return loaded_tfdata
 
 
 class DataBlob(SingleNamespace):
@@ -250,6 +207,8 @@ class DataBlob(SingleNamespace):
         *,
         hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
         datablobs_directory: str,
+        shard_offset: Optional[int] = None,
+        shard_quantity: int = 1,
     ):
         """
         Load a :py:class:`DataBlob` from the filesystem, calculating the
@@ -264,7 +223,9 @@ class DataBlob(SingleNamespace):
         """
         name = cls.calculate_name(hyperparams=hyperparams)
         path = os.path.join(datablobs_directory, name)
-        return cls.from_exact_path(path)
+        return cls.from_exact_path(
+            path, shard_offset=shard_offset, shard_quantity=shard_quantity
+        )
 
     @classmethod
     def from_filesystem_or_new(
@@ -272,6 +233,8 @@ class DataBlob(SingleNamespace):
         *,
         hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
         datablobs_directory: str,
+        shard_offset: Optional[int] = None,
+        shard_quantity: int = 1,
         **kwargs,
     ):
         """Load a :py:class:`DataBlob` from the filesystem, calculating the
@@ -290,15 +253,22 @@ class DataBlob(SingleNamespace):
         """
         try:
             return cls.from_filesystem(
-                hyperparams=hyperparams, datablobs_directory=datablobs_directory
+                hyperparams=hyperparams,
+                datablobs_directory=datablobs_directory,
+                shard_offset=shard_offset,
+                shard_quantity=shard_quantity,
             )
         except DataBlobNotFound:
             return cls(hyperparams=hyperparams, **kwargs)
 
     @staticmethod
-    def from_exact_path(path: str) -> "DataBlob":
+    def from_exact_path(
+        path: str, *, shard_offset: Optional[int] = None, shard_quantity: int = 1
+    ) -> "DataBlob":
         """Load a :py:class:`DataBlob` from a directory on the filesystem."""
-        return _LoadDataBlob.from_exact_path(path=path)
+        return _LoadDataBlob.from_exact_path(
+            path=path, shard_offset=shard_offset, shard_quantity=shard_quantity
+        )
 
     def __repr__(self) -> str:
         return f"<sp.DataBlob {self.name}>"
@@ -462,7 +432,12 @@ class DataBlob(SingleNamespace):
         return None
 
     def save(
-        self, datablobs_directory: str, *, ignore_existing: bool = False
+        self,
+        datablobs_directory: str,
+        *,
+        ignore_existing: bool = False,
+        num_shards: int = 1,
+        save_load_version: int = _DEFAULT_SAVE_LOAD_VERSION,
     ) -> "DataBlob":
         """
         Save this :py:class:`DataBlob` to disk.
@@ -475,6 +450,8 @@ class DataBlob(SingleNamespace):
             ignore_existing: Set this to ``True`` to ignore if
                 there is already a :py:class:`DataBlob` at the given
                 path.
+
+            save_load_version: The ScalarStop version for the ScalarStop protocol.
 
         Returns:
             Return ``self``, enabling you to place this call in a chain.
@@ -494,11 +471,22 @@ class DataBlob(SingleNamespace):
             metadata_json_path = os.path.join(
                 temp_datablob_path, _METADATA_JSON_FILENAME
             )
+
+            # These are the fields that we are going to identically save
+            # in both the JSON and the Pickle.
+            common_metadata = dict(
+                name=self.name,
+                group_name=self.group_name,
+                save_load_version=save_load_version,
+                num_shards=num_shards,
+            )
+
             with open(metadata_json_path, "w", encoding="utf-8") as fh:
                 json.dump(
                     obj=dict(
-                        name=self.name,
-                        group_name=self.group_name,
+                        **common_metadata,
+                        # When we save hyperparams to JSON, we first.
+                        # convert Python dataclasses to dictionaries.
                         hyperparams=asdict(self.hyperparams),
                     ),
                     fp=fh,
@@ -513,8 +501,10 @@ class DataBlob(SingleNamespace):
             with open(metadata_pickle_path, "wb") as fh:  # type: ignore
                 scalarstop.pickle.dump(
                     obj=dict(
-                        name=self.name,
-                        group_name=self.group_name,
+                        **common_metadata,
+                        # When we save hyperparams to Pickle, we make
+                        # sure to serialize the hyperparams as a Python
+                        # dataclass.
                         hyperparams=self.hyperparams,
                     ),
                     file=fh,
@@ -523,23 +513,13 @@ class DataBlob(SingleNamespace):
             for subtype in _SUBTYPES:
                 # Create the directory for each subtype.
                 subtype_path = os.path.join(temp_datablob_path, subtype)
-                os.mkdir(subtype_path)
-
-                # Save the tf.data Dataset.
-                tfdata_path = os.path.join(subtype_path, _TFDATA_DIRECTORY_NAME)
                 tfdata_dataset = getattr(self, subtype)
-                tf.data.experimental.save(
+                tfdata_save(
                     dataset=tfdata_dataset,
-                    path=tfdata_path,
+                    path=subtype_path,
+                    num_shards=num_shards,
+                    save_load_version=save_load_version,
                 )
-
-                # Save the element spec.
-                element_spec_path = os.path.join(subtype_path, _ELEMENT_SPEC_FILENAME)
-                with open(element_spec_path, "wb") as fh:  # type: ignore
-                    scalarstop.pickle.dump(
-                        obj=tfdata_dataset.element_spec,
-                        file=fh,
-                    )
 
                 # Save additional elements that subclasses want to save.
                 self.save_hook(subtype=subtype, path=subtype_path)
@@ -654,9 +634,16 @@ class DataFrameDataBlob(DataBlob):
     @staticmethod
     def from_exact_path(
         path: str,
+        *,
+        shard_offset: Optional[int] = None,
+        shard_quantity: int = 1,
     ) -> Union[DataBlob, "DataFrameDataBlob"]:
         """Load a :py:class:`DataFrameDataBlob` from a directory on the filesystem."""
-        loaded = _LoadDataFrameDataBlob.from_exact_path(path=path)
+        loaded = _LoadDataFrameDataBlob.from_exact_path(
+            path=path,
+            shard_offset=shard_offset,
+            shard_quantity=shard_quantity,
+        )
         return loaded
 
     def __repr__(self) -> str:
@@ -1181,15 +1168,29 @@ class _LoadDataBlob(DataBlob):
         name: str,
         group_name: str,
         hyperparams: HyperparamsType,
+        total_num_shards: int,
+        save_load_version: int,
+        shard_offset: Optional[int],
+        shard_quantity: int,
     ):
         self.Hyperparams = hyperparams.__class__
         super().__init__(hyperparams=hyperparams)
         self._path = path
         self._name = name
         self._group_name = group_name
+        self._save_load_version = save_load_version
+        self._total_num_shards = total_num_shards
+        self._shard_offset = shard_offset
+        self._shard_quantity = shard_quantity
 
     @classmethod
-    def from_exact_path(cls, path: str) -> Union[DataBlob, DataFrameDataBlob]:
+    def from_exact_path(
+        cls,
+        path: str,
+        *,
+        shard_offset: Optional[int] = None,
+        shard_quantity: int = 1,
+    ) -> Union[DataBlob, DataFrameDataBlob]:
         metadata_path = os.path.join(path, _METADATA_PICKLE_FILENAME)
         try:
             with open(metadata_path, "rb") as fh:
@@ -1198,18 +1199,30 @@ class _LoadDataBlob(DataBlob):
             raise DataBlobNotFound(path) from exc
         name = metadata["name"]
         group_name = metadata["group_name"]
+        save_load_version = metadata.get("save_load_version", 1)
+        total_num_shards = metadata.get("num_shards", 1)
         hyperparams = metadata["hyperparams"]
         return cls(
             path=path,
             name=name,
             group_name=group_name,
             hyperparams=hyperparams,
+            total_num_shards=total_num_shards,
+            shard_offset=shard_offset,
+            shard_quantity=shard_quantity,
+            save_load_version=save_load_version,
         )
 
     def _load_tfdata(self, subtype: str) -> tf.data.Dataset:
         """Load one of the :py:class:`tf.data.Dataset` s that we have saved."""
         try:
-            return _load_tfdata_dataset(os.path.join(self._path, subtype))
+            return tfdata_load(
+                path=os.path.join(self._path, subtype),
+                total_num_shards=self._total_num_shards,
+                shard_offset=self._shard_offset,
+                shard_quantity=self._shard_quantity,
+                save_load_version=self._save_load_version,
+            )
         except ElementSpecNotFound as exc:
             raise TensorFlowDatasetNotFound(self._path) from exc
 
