@@ -13,6 +13,7 @@ import pandas as pd
 import tensorflow as tf
 
 import scalarstop as sp
+from scalarstop._constants import _DEFAULT_SAVE_LOAD_VERSION
 from scalarstop._filesystem import rmtree
 from tests.assertions import (
     assert_datablob_dataframes_are_equal,
@@ -57,6 +58,35 @@ class MyDataBlob(sp.DataBlob):
     def set_test(self):
         """Set the test tfdata."""
         return tf.data.Dataset.from_tensor_slices([11, 12, 13, 14, 15])
+
+
+class MyDataBlobArbitraryRows(sp.DataBlob):
+    """A DataBlob fixture where we can arbitrarily vary the number of rows."""
+
+    @sp.dataclass
+    class Hyperparams(sp.HyperparamsType):
+        """Hyperparams for MyDataBlobArbitraryRows."""
+
+        num_training: int
+        num_validation: int
+        num_test: int
+        coefficient: int = 100
+
+    hyperparams: "MyDataBlobArbitraryRows.Hyperparams"
+
+    def _make_tfdata(self, num: int) -> tf.data.Dataset:
+        return tf.data.Dataset.range(num).map(
+            lambda x: x * self.hyperparams.coefficient
+        )
+
+    def set_training(self):
+        return self._make_tfdata(self.hyperparams.num_training)
+
+    def set_validation(self):
+        return self._make_tfdata(self.hyperparams.num_validation)
+
+    def set_test(self):
+        return self._make_tfdata(self.hyperparams.num_test)
 
 
 class MyDataBlobForgotHyperparams(sp.ModelTemplate):
@@ -260,6 +290,8 @@ class DataBlobTestCase(unittest.TestCase):
             name=blob.name,
             group_name=blob.group_name,
             hyperparams=sp.dataclasses.asdict(blob.hyperparams),
+            save_load_version=_DEFAULT_SAVE_LOAD_VERSION,
+            num_shards=1,
         )
         with open(filename, "r", encoding="utf-8") as fh:
             actual = json.load(fh)
@@ -1112,3 +1144,190 @@ class TestAppendDataBlob(unittest.TestCase):
             )
             assert_datablob_metadatas_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)
+
+
+class TestDataBlobSaveLoadVersions(unittest.TestCase):
+    """
+    Test the ``load_save_version`` part of DataBlob.
+
+    We want to make sure that we can version the protocol
+    that we use to save and load DataBlobs to/from disk.
+    Ideally, we want ScalarStop to be both backwards-compatible
+    and forwards-compatible.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.datablob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+
+    def setUp(self):
+        self._datablobs_directory_handle = (
+            tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        )
+        self.datablobs_directory = self._datablobs_directory_handle.name
+
+    def tearDown(self):
+        self._datablobs_directory_handle.cleanup()
+
+    def test_save_v1_does_not_support_sharding(self):
+        """Test that the ``load_save_version`` 1 does not support sharding."""
+        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+            self.datablob.save(
+                datablobs_directory=self.datablobs_directory,
+                save_load_version=1,
+                num_shards=2,
+            )
+
+    def test_load_fails_with_shard_offset_too_high(self):
+        """Test that we cannot load a DataBlob when shard_offset >= num_shards."""
+        self.datablob.save(
+            datablobs_directory=self.datablobs_directory,
+            num_shards=2,
+        )
+        loaded = MyDataBlob.from_filesystem(
+            datablobs_directory=self.datablobs_directory,
+            shard_offset=3,
+        )
+        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+            loaded.training  # pylint: disable=pointless-statement
+
+    def test_load_fails_with_shard_quantity_too_high(self):
+        """Test that we cannot load a DataBlob when shard_quantity >= num_shards."""
+        self.datablob.save(
+            datablobs_directory=self.datablobs_directory,
+            num_shards=2,
+        )
+        loaded = MyDataBlob.from_filesystem(
+            datablobs_directory=self.datablobs_directory,
+            shard_offset=0,
+            shard_quantity=4,
+        )
+        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+            loaded.training  # pylint: disable=pointless-statement
+
+    def test_load_fails_with_shard_num_shards_and_quantity_too_high(self):
+        """Test that we cannot load a DataBlob when shard_offset + shard_quantity >= num_shards."""
+        self.datablob.save(
+            datablobs_directory=self.datablobs_directory,
+            num_shards=2,
+        )
+        loaded = MyDataBlob.from_filesystem(
+            datablobs_directory=self.datablobs_directory,
+            shard_offset=2,
+            shard_quantity=2,
+        )
+        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+            loaded.training  # pylint: disable=pointless-statement
+
+    def test_save_vdefault_and_load(self):
+        """Test that we can load and save datablobs with the default protocol."""
+        self.datablob.save(datablobs_directory=self.datablobs_directory)
+        loaded = MyDataBlob.from_filesystem(
+            datablobs_directory=self.datablobs_directory
+        )
+        assert_datablob_metadatas_are_equal(self.datablob, loaded)
+        assert_datablobs_tfdatas_are_equal(self.datablob, loaded)
+
+    def test_save_v1_and_load(self):
+        """Test that we can save and load datablobs with protocol v1."""
+        self.datablob.save(
+            datablobs_directory=self.datablobs_directory, save_load_version=1
+        )
+        loaded = MyDataBlob.from_filesystem(
+            datablobs_directory=self.datablobs_directory
+        )
+        assert_datablob_metadatas_are_equal(self.datablob, loaded)
+        assert_datablobs_tfdatas_are_equal(self.datablob, loaded)
+
+    def test_save_v2_and_load(self):
+        """Test that we can save and load datablobs with protocol v2."""
+        self.datablob.save(
+            datablobs_directory=self.datablobs_directory,
+            save_load_version=2,
+        )
+        loaded = MyDataBlob.from_filesystem(
+            datablobs_directory=self.datablobs_directory
+        )
+        assert_datablob_metadatas_are_equal(self.datablob, loaded)
+        assert_datablobs_tfdatas_are_equal(self.datablob, loaded)
+
+    def test_save_v3_and_load(self):
+        """We we haven't implemented Save/Load version 3 yet, so we expect an exception."""
+        with self.assertRaises(sp.exceptions.UnsupportedDataBlobSaveLoadVersion):
+            self.datablob.save(
+                datablobs_directory=self.datablobs_directory,
+                save_load_version=3,
+            )
+
+
+class TestDataBlobSharding(unittest.TestCase):
+    """
+    Test that we can load and save DataBlobs with sharding enabled.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.datablob = MyDataBlobArbitraryRows(
+            hyperparams=dict(
+                num_training=12,
+                num_validation=13,
+                num_test=3,
+            ),
+        )
+
+    def _get_num_shards(self, *, datablobs_directory: str, subtype: str) -> int:
+        shard_parent_directory = os.path.join(
+            datablobs_directory, self.datablob.name, subtype, "tfdata"  # type: ignore
+        )
+        shard_dir_name = [
+            name
+            for name in os.listdir(shard_parent_directory)
+            if name not in ("snapshot.metadata", "dataset_spec.pb")
+        ][0]
+        return len(os.listdir(os.path.join(shard_parent_directory, shard_dir_name)))
+
+    def test_sharding_default(self):
+        """Test that sharding works with the default parameter values."""
+        expected_num_shards = 1
+        with tempfile.TemporaryDirectory() as datablobs_directory:
+            self.datablob.save(datablobs_directory=datablobs_directory)
+            for subtype in ["training", "validation", "test"]:
+                with self.subTest(subtype):
+                    actual_num_shards = self._get_num_shards(
+                        datablobs_directory=datablobs_directory, subtype=subtype
+                    )
+                    self.assertEqual(expected_num_shards, actual_num_shards)
+
+    def test_sharding_with_shard_quantity_1(self):
+        """Test that we can read/and write a DataBlob in multiple shards (with shard_quantity=1)."""
+        for expected_num_shards in range(1, 4):
+            with tempfile.TemporaryDirectory() as datablobs_directory:
+                self.datablob.save(
+                    datablobs_directory=datablobs_directory,
+                    num_shards=expected_num_shards,
+                )
+                for subtype in ["training", "validation", "test"]:
+                    with self.subTest(
+                        subtype=subtype, expected_num_shards=expected_num_shards
+                    ):
+                        actual_num_shards = self._get_num_shards(
+                            datablobs_directory=datablobs_directory, subtype=subtype
+                        )
+                        self.assertEqual(expected_num_shards, actual_num_shards)
+
+                        for shard_offset in range(expected_num_shards):
+                            loaded = MyDataBlobArbitraryRows.from_filesystem(
+                                hyperparams=self.datablob.hyperparams,
+                                datablobs_directory=datablobs_directory,
+                                shard_offset=shard_offset,
+                            )
+                            assert_datablob_metadatas_are_equal(self.datablob, loaded)
+                            expected = list(
+                                getattr(self.datablob, subtype)
+                                .shard(
+                                    index=shard_offset, num_shards=expected_num_shards
+                                )
+                                .as_numpy_iterator()
+                            )
+                            actual = list(getattr(loaded, subtype).as_numpy_iterator())
+                            self.assertEqual(expected, actual)
