@@ -809,9 +809,11 @@ class _WrapDataBlob(DataBlob):
     @property
     def training(self) -> tf.data.Dataset:
         """An instance of the training set tf.data."""
-        if self._training is None:
-            self._training = self.set_training()
-        return self._training
+        if self._enable_training:
+            if self._training is None:
+                self._training = self._wrap_tfdata(self._wraps.training)
+            return self._training
+        return self._wraps.training
 
     def set_validation(self) -> tf.data.Dataset:
         if self._enable_validation:
@@ -821,9 +823,11 @@ class _WrapDataBlob(DataBlob):
     @property
     def validation(self) -> tf.data.Dataset:
         """An instance of the validation set tf.data."""
-        if self._validation is None:
-            self._validation = self.set_validation()
-        return self._validation
+        if self._enable_validation:
+            if self._validation is None:
+                self._validation = self._wrap_tfdata(self._wraps.validation)
+            return self._validation
+        return self._wraps.validation
 
     def set_test(self) -> tf.data.Dataset:
         if self._enable_test:
@@ -833,9 +837,11 @@ class _WrapDataBlob(DataBlob):
     @property
     def test(self) -> tf.data.Dataset:
         """An instance of the test set tf.data."""
-        if self._test is None:
-            self._test = self.set_test()
-        return self._test
+        if self._enable_test:
+            if self._test is None:
+                self._test = self._wrap_tfdata(self._wraps.test)
+            return self._test
+        return self._wraps.test
 
     def save_hook(self, *, subtype: str, path: str) -> None:
         return self._wraps.save_hook(subtype=subtype, path=path)
@@ -989,30 +995,30 @@ class AppendDataBlob(DataBlob):
         raise IsNotImplemented("AppendDataBlob._wrap_tfdata()")
 
     def set_training(self) -> tf.data.Dataset:
-        return self._wrap_tfdata(self.parent.set_training())
+        return self._wrap_tfdata(self._parent.set_training())
 
     @property
     def training(self) -> tf.data.Dataset:
         if self._training is None:
-            self._training = self._wrap_tfdata(self.parent.training)
+            self._training = self._wrap_tfdata(self._parent.training)
         return self._training
 
     def set_validation(self) -> tf.data.Dataset:
-        return self._wrap_tfdata(self.parent.set_validation())
+        return self._wrap_tfdata(self._parent.set_validation())
 
     @property
     def validation(self) -> tf.data.Dataset:
         if self._validation is None:
-            self._validation = self._wrap_tfdata(self.parent.validation)
+            self._validation = self._wrap_tfdata(self._parent.validation)
         return self._validation
 
     def set_test(self) -> tf.data.Dataset:
-        return self._wrap_tfdata(self.parent.set_test())
+        return self._wrap_tfdata(self._parent.set_test())
 
     @property
     def test(self) -> tf.data.Dataset:
         if self._test is None:
-            self._test = self._wrap_tfdata(self.parent.test)
+            self._test = self._wrap_tfdata(self._parent.test)
         return self._test
 
 
