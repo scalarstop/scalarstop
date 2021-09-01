@@ -22,6 +22,7 @@ from tests.assertions import (
     assert_dataframes_are_equal,
     assert_directory,
     assert_hyperparams_are_equal,
+    assert_tfdatas_are_equal,
     tfdata_get_first_shape_len,
 )
 
@@ -608,6 +609,98 @@ class Test_WrapDataBlob(DataBlobTestCase):
             with self.subTest(property_name):
                 with self.assertRaises(sp.exceptions.IsNotImplemented):
                     getattr(wrapped, property_name)
+
+    def test_cache_wrapping(self):
+        """
+        Test that `_WrapDataBlob.training` calls `parent.training` a
+        opposed to `parent.set_training()`.
+        """
+
+        class _TrainingCalled(Exception):
+            """Test that DataBlob.training is called."""
+
+        class _ValidationCalled(Exception):
+            """Test that DataBlob.validation is called."""
+
+        class _TestCalled(Exception):
+            """Test that DataBlob.test is called."""
+
+        class _Parent(MyDataBlob):
+            """Parent class with instrumented training, validation, and test property() methods."""
+
+            @property
+            def training(self):
+                raise _TrainingCalled("training")
+
+            @property
+            def validation(self):
+                raise _ValidationCalled("validation")
+
+            @property
+            def test(self):
+                raise _TestCalled("test")
+
+        wrapped = sp.datablob._WrapDataBlob(
+            wraps=_Parent(),
+            training=True,
+            validation=True,
+            test=True,
+        )
+        with self.assertRaises(_TrainingCalled):
+            wrapped.training  # pylint: disable=pointless-statement
+        with self.assertRaises(_ValidationCalled):
+            wrapped.validation  # pylint: disable=pointless-statement
+        with self.assertRaises(_TestCalled):
+            wrapped.test  # pylint: disable=pointless-statement
+
+    def test_disable_training_validation_test(self):
+        """
+        Test that _WrapDataBlob can selectively disable the training, validation, and test suites.
+        """
+
+        class _Wrapper(sp.datablob._WrapDataBlob):
+            def _wrap_tfdata(self, tfdata):
+                return tfdata.map(lambda x: x * 1000)
+
+        parent = MyDataBlob()
+        wrapped_training = _Wrapper(
+            wraps=parent,
+            training=True,
+            validation=False,
+            test=False,
+        )
+        expected_training = tf.data.Dataset.from_tensor_slices(
+            [1000, 2000, 3000, 4000, 5000]
+        )
+        assert_tfdatas_are_equal(expected_training, wrapped_training.training)
+        assert_tfdatas_are_equal(parent.validation, wrapped_training.validation)
+        assert_tfdatas_are_equal(parent.test, wrapped_training.test)
+
+        wrapped_validation = _Wrapper(
+            wraps=parent,
+            training=False,
+            validation=True,
+            test=False,
+        )
+        expected_validation = tf.data.Dataset.from_tensor_slices(
+            [6000, 7000, 8000, 9000, 10000]
+        )
+        assert_tfdatas_are_equal(parent.training, wrapped_validation.training)
+        assert_tfdatas_are_equal(expected_validation, wrapped_validation.validation)
+        assert_tfdatas_are_equal(parent.test, wrapped_validation.test)
+
+        wrapped_test = _Wrapper(
+            wraps=parent,
+            training=False,
+            validation=False,
+            test=True,
+        )
+        expected_test = tf.data.Dataset.from_tensor_slices(
+            [11000, 12000, 13000, 14000, 15000]
+        )
+        assert_tfdatas_are_equal(parent.training, wrapped_test.training)
+        assert_tfdatas_are_equal(parent.validation, wrapped_test.validation)
+        assert_tfdatas_are_equal(expected_test, wrapped_test.test)
 
 
 class Test_BatchDataBlob(DataBlobTestCase):
