@@ -40,7 +40,7 @@ class SingleNamespace:
         cls, *, hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None
     ) -> str:
         """
-        The hashed name of this object, given the hyperparameters.
+        Calculate the hashed name of this object, given the hyperparameters.
 
         This classmethod can be used to calculate what an object would
         be without actually having to call ``__init__()``.
