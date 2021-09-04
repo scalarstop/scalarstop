@@ -944,11 +944,101 @@ class AppendDataBlob(DataBlob):
 
     Hyperparams: Type[AppendHyperparamsType] = AppendHyperparamsType
 
+    @classmethod
+    def create_append_hyperparams(
+        cls,
+        *,
+        parent: DataBlob,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+    ):
+        """
+        Combine the hyperparams from the parent :py:class:`DataBlob` with
+        the hyperparams meant for this :py:class:`AppendDataBlob`.
+        """
+        return dict(
+            parent=NestedHyperparamsType(
+                name=parent.name,
+                group_name=parent.group_name,
+                hyperparams=parent.hyperparams,
+            ),
+            **enforce_dict(hyperparams),
+        )
+
+    @classmethod
+    def calculate_name_from_parent(
+        cls,
+        *,
+        parent: DataBlob,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+    ):
+        """Calculate the hashed name of this :py:class:`AppendDataBlob`,
+        given the hyperparameters and the parent :py:class:`DataBlob`."""
+        append_hyperparams = cls.create_append_hyperparams(
+            parent=parent, hyperparams=hyperparams
+        )
+        return cls.calculate_name(hyperparams=append_hyperparams)
+
+    @classmethod
+    def from_filesystem_with_parent(
+        cls,
+        *,
+        parent: DataBlob,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        datablobs_directory: str,
+        shard_offset: Optional[int] = None,
+        shard_quantity: int = 1,
+    ):
+        """
+        Load a :py:class:`AppendDataBlob` from the filesystem, calculating the
+        filename from the parent and the hyperparameters..
+        """
+        name = cls.calculate_name_from_parent(parent=parent, hyperparams=hyperparams)
+        path = os.path.join(datablobs_directory, name)
+        return cls.from_exact_path(
+            path, shard_offset=shard_offset, shard_quantity=shard_quantity
+        )
+
+    @classmethod
+    def from_filesystem_or_new_with_parent(  # pylint: disable=arguments-differ
+        cls,
+        *,
+        parent: DataBlob,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]],
+        datablobs_directory: str,
+        shard_offset: Optional[int] = None,
+        shard_quantity: int = 1,
+        **kwargs,
+    ):
+        """
+        Load a :py:class:`AppendDataBlob` from the filesystem, calculating the
+        filename from the hyperparameters. Create a new :py:class:`AppendDataBlob`
+        if we cannot find a saved one on the filesystem.
+
+        Args:
+            parent: The :py:class:`DataBlob` to extend.
+
+            hyperparams: The hyperparameters of the model that we want to load.
+
+            datablobs_directory: The parent directory of all of your saved
+                :py:class:`DataBlob` s. The exact filename is calculated.
+        """
+        try:
+            return cls.from_filesystem_with_parent(
+                parent=parent,
+                hyperparams=hyperparams,
+                datablobs_directory=datablobs_directory,
+                shard_offset=shard_offset,
+                shard_quantity=shard_quantity,
+            )
+        except DataBlobNotFound:
+            return cls(parent=parent, hyperparams=hyperparams, **kwargs)
+
     def __init__(
         self,
         *,
         parent: DataBlob,
         hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        **kwargs,
     ):
         """
         Args:
@@ -958,13 +1048,8 @@ class AppendDataBlob(DataBlob):
                 existing hyperparameters from the parent :py:class:`DataBlob`.
         """
         super().__init__(
-            hyperparams=dict(
-                parent=NestedHyperparamsType(
-                    name=parent.name,
-                    group_name=parent.group_name,
-                    hyperparams=parent.hyperparams,
-                ),
-                **enforce_dict(hyperparams),
+            hyperparams=self.create_append_hyperparams(
+                parent=parent, hyperparams=hyperparams
             )
         )
         self._parent = parent
