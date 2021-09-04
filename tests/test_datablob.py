@@ -1238,6 +1238,46 @@ class TestAppendDataBlob(unittest.TestCase):
             assert_datablob_metadatas_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)
 
+    def test_from_filesystem_with_parent(self):
+        """Test AppendDataBlob.from_filesystem_with_parent()"""
+        with tempfile.TemporaryDirectory() as datablobs_directory:
+            coefficient = 10
+            parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+            append = MyAppendDataBlob(
+                parent=parent,
+                hyperparams=dict(coefficient=coefficient),
+                secret2="secret2",
+            )
+            append.save(datablobs_directory)
+            append_loaded = MyAppendDataBlob.from_filesystem_with_parent(
+                parent=parent,
+                hyperparams=dict(coefficient=coefficient),
+                datablobs_directory=datablobs_directory,
+            )
+            assert_datablob_metadatas_are_equal(append, append_loaded)
+            assert_datablobs_tfdatas_are_equal(append, append_loaded)
+
+    def test_from_filesystem_or_new_with_parent(self):
+        """Test AppendDataBlob.from_filesystem_or_new_with_parent()"""
+        with tempfile.TemporaryDirectory() as datablobs_directory:
+            coefficient = 10
+            parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+            append = MyAppendDataBlob.from_filesystem_or_new_with_parent(
+                parent=parent,
+                hyperparams=dict(coefficient=coefficient),
+                secret2="secret2",
+                datablobs_directory=datablobs_directory,
+            )
+            append.save(datablobs_directory)
+            append_loaded = MyAppendDataBlob.from_filesystem_or_new_with_parent(
+                parent=parent,
+                hyperparams=dict(coefficient=coefficient),
+                secret2="secret2",
+                datablobs_directory=datablobs_directory,
+            )
+            assert_datablob_metadatas_are_equal(append, append_loaded)
+            assert_datablobs_tfdatas_are_equal(append, append_loaded)
+
 
 class TestDataBlobSaveLoadVersions(unittest.TestCase):
     """
