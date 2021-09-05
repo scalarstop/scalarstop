@@ -3,6 +3,7 @@ Utilities for creating typed Python dataclasses for storing hyperparameters.
 """
 from typing import TYPE_CHECKING, Any, Dict, Mapping
 
+from scalarstop._attr_dict import AttrDict
 from scalarstop._naming import hash_id
 from scalarstop.dataclasses import asdict, is_dataclass
 from scalarstop.exceptions import WrongHyperparamsType, YouForgotTheHyperparams
@@ -60,7 +61,7 @@ def flatten_hyperparams(hyperparams: Any) -> Dict[str, Any]:
     Recursively flatten the hyperparams embedded
     in a :py:class:`NestedHyperparamsType` instance.
     """
-    return _flatten_hyperparams(enforce_dict(hyperparams))
+    return AttrDict(**_flatten_hyperparams(enforce_dict(hyperparams)))
 
 
 @dataclass  # pylint: disable=used-before-assignment

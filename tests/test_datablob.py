@@ -1409,6 +1409,18 @@ class TestAppendDataBlob(unittest.TestCase):
         self.assertEqual(child.hyperparams_flat, dict(a=5, b="hi", c=3, d=4))
         self.assertEqual(grandchild.hyperparams_flat, dict(a=5, b="lol", d=4, c=6, e=7))
 
+        self.assertEqual(parent.hyperparams_flat.a, 2)
+        self.assertEqual(parent.hyperparams_flat.b, "hi")
+        self.assertEqual(child.hyperparams_flat.a, 5)
+        self.assertEqual(child.hyperparams_flat.b, "hi")
+        self.assertEqual(child.hyperparams_flat.c, 3)
+        self.assertEqual(child.hyperparams_flat.d, 4)
+        self.assertEqual(grandchild.hyperparams_flat.a, 5)
+        self.assertEqual(grandchild.hyperparams_flat.b, "lol")
+        self.assertEqual(grandchild.hyperparams_flat.c, 6)
+        self.assertEqual(grandchild.hyperparams_flat.d, 4)
+        self.assertEqual(grandchild.hyperparams_flat.e, 7)
+
         self.assertEqual([2, 4, 6, 8, 10], tfdata_as_list(parent.training))
         self.assertEqual([10, 20, 30, 40, 50], tfdata_as_list(child.training))
         self.assertEqual([60, 120, 180, 240, 300], tfdata_as_list(grandchild.training))
