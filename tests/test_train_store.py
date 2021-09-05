@@ -70,6 +70,7 @@ class TrainStoreUnits:  # pylint: disable=no-member
             [
                 "group_name",
                 "hyperparams",
+                "hyperparams_flat",
                 "last_modified",
                 "name",
             ],
@@ -374,6 +375,7 @@ class TrainStoreIntegration:  # pylint: disable=no-member
             [
                 "datablob_group_name",
                 "datablob_hyperparams",
+                "datablob_hyperparams_flat",
                 "datablob_name",
                 "model_class_name",
                 "model_epoch_metrics",

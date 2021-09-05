@@ -45,6 +45,24 @@ def init_hyperparams(*, class_name: str, hyperparams, hyperparams_class) -> Any:
     raise YouForgotTheHyperparams(class_name=class_name)
 
 
+def _flatten_hyperparams(hp_dict):
+    parent_hp_dict = hp_dict.pop("parent", None)
+    if parent_hp_dict:
+        return {
+            **_flatten_hyperparams(parent_hp_dict["hyperparams"]),
+            **hp_dict,
+        }
+    return hp_dict
+
+
+def flatten_hyperparams(hyperparams: Any) -> Dict[str, Any]:
+    """
+    Recursively flatten the hyperparams embedded
+    in a :py:class:`NestedHyperparamsType` instance.
+    """
+    return _flatten_hyperparams(enforce_dict(hyperparams))
+
+
 @dataclass  # pylint: disable=used-before-assignment
 class HyperparamsType:
     """

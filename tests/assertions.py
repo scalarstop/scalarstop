@@ -1,7 +1,7 @@
 """Testing utilities that we'll use throughout the project."""
 import os
 import unittest
-from typing import List
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -50,6 +50,11 @@ def assert_hyperparams_are_equal(h1: sp.HyperparamsType, h2: sp.HyperparamsType)
     )
 
 
+def assert_hyperparams_flat_are_equal(h1: Dict[str, Any], h2: Dict[str, Any]):
+    """Assert the outputs of hyperparams_flat() are equal."""
+    assert_equal(h1, h2)
+
+
 def tfdata_as_list(tfdata: tf.data.Dataset) -> List[np.ndarray]:
     """Return a tf.data pipeline as a list of NumPy arrays."""
     return list(tfdata.as_numpy_iterator())
@@ -66,12 +71,18 @@ def assert_tfdatas_are_equal(d1: tf.data.Dataset, d2: tf.data.Dataset):
         assert np.array_equal(i1, i2)
 
 
+def assert_datablob_reprs_are_equal(blob1: sp.DataBlob, blob2: sp.DataBlob):
+    """Assert that DataBlob __repr__() methods return the same string."""
+    assert_equal(repr(blob1), repr(blob2))
+
+
 def assert_datablob_metadatas_are_equal(blob1: sp.DataBlob, blob2: sp.DataBlob):
     """Assert that datablob metadata is equal, but does not check DataFrames or Datasets."""
     assert_equal(repr(blob1), repr(blob2))
     assert_equal(blob1.name, blob2.name)
     assert_equal(blob1.group_name, blob2.group_name)
     assert_hyperparams_are_equal(blob1.hyperparams, blob2.hyperparams)
+    assert_hyperparams_flat_are_equal(blob1.hyperparams_flat, blob2.hyperparams_flat)
 
 
 def assert_datablob_dataframes_are_equal(

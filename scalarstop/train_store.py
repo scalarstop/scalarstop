@@ -58,7 +58,7 @@ from sqlalchemy.exc import IntegrityError
 
 from scalarstop._datetime import utcnow
 from scalarstop.exceptions import SQLite_JSON_ModeDisabled
-from scalarstop.hyperparams import enforce_dict
+from scalarstop.hyperparams import enforce_dict, flatten_hyperparams
 
 _LOGGER = Logger(__name__)
 
@@ -92,6 +92,7 @@ class _ModelMetadata:
     datablob_name: str
     datablob_group_name: str
     datablob_hyperparams: Dict[str, Any]
+    datablob_hyperparams_flat: Dict[str, Any]
     model_template_name: str
     model_template_group_name: str
     model_template_hyperparams: Dict[str, Any]
@@ -142,7 +143,11 @@ def _flatten_hyperparam_results(results) -> List[Dict[str, str]]:
     results_dicts = []
     for row in results:
         row_dict = dict(row)
-        dbh = row_dict.pop("datablob_hyperparams")
+        dbh = row_dict.pop("datablob_hyperparams_flat")
+        if dbh is None:
+            dbh = row_dict.pop("datablob_hyperparams")
+        else:
+            row_dict.pop("datablob_hyperparams")
         mth = row_dict.pop("model_template_hyperparams")
         results_dicts.append(
             dict(
@@ -180,6 +185,7 @@ class _TrainStoreTables:
             Column("datablob_name", Text, primary_key=True, nullable=False),
             Column("datablob_group_name", Text, nullable=False),
             Column("datablob_hyperparams", JSON, nullable=False),
+            Column("datablob_hyperparams_flat", JSON, nullable=True),
             Column(
                 "datablob_last_modified",
                 DateTime(timezone=True),
@@ -536,6 +542,7 @@ class TrainStore:
             datablob_name=name,
             datablob_group_name=group_name,
             datablob_hyperparams=enforce_dict(hyperparams),
+            datablob_hyperparams_flat=flatten_hyperparams(hyperparams),
         )
         self._insert(
             table=self.table.datablob,
@@ -555,6 +562,9 @@ class TrainStore:
                 self.table.datablob.c.datablob_name.label("name"),
                 self.table.datablob.c.datablob_group_name.label("group_name"),
                 self.table.datablob.c.datablob_hyperparams.label("hyperparams"),
+                self.table.datablob.c.datablob_hyperparams_flat.label(
+                    "hyperparams_flat"
+                ),
                 self.table.datablob.c.datablob_last_modified.label("last_modified"),
             ]
         ).select_from(self.table.datablob)
@@ -868,6 +878,7 @@ class TrainStore:
                     self.table.datablob.c.datablob_name,
                     self.table.datablob.c.datablob_group_name,
                     self.table.datablob.c.datablob_hyperparams,
+                    self.table.datablob.c.datablob_hyperparams_flat,
                     self.table.model_template.c.model_template_name,
                     self.table.model_template.c.model_template_group_name,
                     self.table.model_template.c.model_template_hyperparams,
@@ -938,6 +949,7 @@ class TrainStore:
             self.table.datablob.c.datablob_name,
             self.table.datablob.c.datablob_group_name,
             self.table.datablob.c.datablob_hyperparams,
+            self.table.datablob.c.datablob_hyperparams_flat,
             self.table.model_template.c.model_template_name,
             self.table.model_template.c.model_template_group_name,
             self.table.model_template.c.model_template_hyperparams,
@@ -1365,6 +1377,7 @@ class TrainStore:
             * ``datablob_name``
             * ``datablob_group_name``
             * ``datablob_hyperparams``
+            * ``datablob_hyperparams_flat``
             * ``model_template_name``
             * ``model_template_group_name``
             * ``model_template_hyperparams``

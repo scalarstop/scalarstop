@@ -14,7 +14,7 @@ that makes it easy to keep track of many datasets at once.
 import errno
 import json
 import os
-from typing import Any, Mapping, Optional, Type, Union
+from typing import Any, Dict, Mapping, Optional, Type, Union
 
 import pandas as pd
 import tensorflow as tf
@@ -51,6 +51,7 @@ from scalarstop.hyperparams import (
     HyperparamsType,
     NestedHyperparamsType,
     enforce_dict,
+    flatten_hyperparams,
 )
 
 _LOGGER = Logger(__name__)
@@ -200,6 +201,31 @@ class DataBlob(SingleNamespace):
     _training: Optional[tf.data.Dataset] = None
     _validation: Optional[tf.data.Dataset] = None
     _test: Optional[tf.data.Dataset] = None
+    _hyperparams_flat: Optional[Dict[str, Any]] = None
+
+    @property
+    def hyperparams_flat(self) -> Dict[str, Any]:
+        """
+        Returns a Python dictionary of "flattened" hyperparameters.
+
+        :py:class:`AppendDataBlob` objects modify a
+        "parent" :py:class:`DataBlob`, nesting the parent's
+        `Hyperparams` within the :py:class:`AppendDataBlob` 's
+        own `Hyperparams`.
+
+        This makes it hard to look up a given hyperparams
+        key. A value at ``parent_datablob.hyperparams.a`` is
+        stored at ``child_datablob.hyperparams.parent.hyperparams.a``.
+
+        This ``hyperparams_flat`` property provides all
+        nested hyperparams keys as a flat Python dictionary.
+        If a child :py:class:`AppendDataBlob` has a hyperparameter
+        key that that conflicts with the parent, the child's value
+        will overwrite the parent's value.
+        """
+        if self._hyperparams_flat is None:
+            self._hyperparams_flat = flatten_hyperparams(self.hyperparams)
+        return self._hyperparams_flat
 
     @classmethod
     def from_filesystem(
