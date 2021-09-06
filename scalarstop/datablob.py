@@ -270,6 +270,25 @@ class DataBlob(SingleNamespace):
             path=path, shard_offset=shard_offset, shard_quantity=shard_quantity
         )
 
+    def exists_in_datablobs_directory(
+        self,
+        datablobs_directory: str,
+    ) -> bool:
+        """
+        Returns ``True`` if this :py:class:`DataBlob` was already saved
+        within ``datablobs_directory``.
+
+        Args:
+            datablobs_directory: The parent directory of all of your
+                saved :py:class:`DataBlob` s.
+
+        Returns:
+            Returns ``True`` if we found a py:class:`DataBlob`
+            metadata file at the expected location.
+        """
+        path = os.path.join(datablobs_directory, self.name)
+        return os.path.exists(path)
+
     def __repr__(self) -> str:
         return f"<sp.DataBlob {self.name}>"
 
@@ -1015,9 +1034,10 @@ class AppendDataBlob(DataBlob):
         if we cannot find a saved one on the filesystem.
 
         Args:
-            parent: The :py:class:`DataBlob` to extend.
+            parent: The parent :py:class:`DataBlob` to extend.
 
-            hyperparams: The hyperparameters of the model that we want to load.
+            hyperparams: The hyperparameters of the  :py:class:`DataBlob`
+                that we want to load.
 
             datablobs_directory: The parent directory of all of your saved
                 :py:class:`DataBlob` s. The exact filename is calculated.
