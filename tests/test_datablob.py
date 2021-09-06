@@ -316,6 +316,7 @@ class DataBlobTestCase(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             blob.save(datablobs_directory)
         self.assertTrue(os.path.exists(os.path.join(datablobs_directory, blob.name)))
+        self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
         this_datablobs_directory = os.path.join(datablobs_directory, blob.name)
         assert_directory(
             this_datablobs_directory,
@@ -412,7 +413,13 @@ class TestDataBlob(DataBlobTestCase):
         """Test that we can save a :py:class:`DataBlob`."""
         with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+            # Make sure that the DataBlob has not already been saved.
+            self.assertFalse(blob.exists_in_datablobs_directory(datablobs_directory))
+
+            # Save the DataBlob and check that it was successfully persisted
+            # to the filesystem.
             blob.save(datablobs_directory)
+            self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
 
             # Test that we raise an exception when the datablob already exists.
             with self.assertRaises(sp.exceptions.FileExists):
@@ -438,7 +445,7 @@ class TestDataBlob(DataBlobTestCase):
 
     def test_save_catch_exception(self):
         """
-        Test that :py:meth:`DataBlob.save` deletespartially-saved
+        Test that :py:meth:`DataBlob.save` deletes partially-saved
         data if it fails.
         """
         with tempfile.TemporaryDirectory() as datablobs_directory:
@@ -471,6 +478,7 @@ class TestDataBlob(DataBlobTestCase):
         with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
             blob.save(datablobs_directory)
+            self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
             loaded = sp.DataBlob.from_exact_path(
                 os.path.join(datablobs_directory, blob.name)
             )
@@ -1053,7 +1061,9 @@ class TestDataFrameDataBlob(DataBlobTestCase):
         """Test that we can save a DataFrameDataBlob."""
         with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataFrameDataBlob()
+            self.assertFalse(blob.exists_in_datablobs_directory(datablobs_directory))
             blob.save(datablobs_directory)
+            self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
 
     def test_from_exact_path(self):
         """
@@ -1062,7 +1072,9 @@ class TestDataFrameDataBlob(DataBlobTestCase):
         """
         with tempfile.TemporaryDirectory() as datablobs_directory:
             blob = MyDataFrameDataBlob()
+            self.assertFalse(blob.exists_in_datablobs_directory(datablobs_directory))
             blob.save(datablobs_directory)
+            self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
             loaded = MyDataFrameDataBlob.from_exact_path(
                 os.path.join(datablobs_directory, blob.name)
             )
@@ -1232,6 +1244,8 @@ class TestAppendDataBlob(unittest.TestCase):
                 secret2="secret2",
             )
             append.save(datablobs_directory)
+            self.assertTrue(append.exists_in_datablobs_directory(datablobs_directory))
+            self.assertFalse(parent.exists_in_datablobs_directory(datablobs_directory))
             append_loaded = MyAppendDataBlob.from_exact_path(
                 os.path.join(datablobs_directory, append.name)
             )
@@ -1310,12 +1324,18 @@ class TestDataBlobSaveLoadVersions(unittest.TestCase):
                 save_load_version=1,
                 num_shards=2,
             )
+        self.assertFalse(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
 
     def test_load_fails_with_shard_offset_too_high(self):
         """Test that we cannot load a DataBlob when shard_offset >= num_shards."""
         self.datablob.save(
             datablobs_directory=self.datablobs_directory,
             num_shards=2,
+        )
+        self.assertTrue(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
         )
         loaded = MyDataBlob.from_filesystem(
             datablobs_directory=self.datablobs_directory,
@@ -1326,9 +1346,15 @@ class TestDataBlobSaveLoadVersions(unittest.TestCase):
 
     def test_load_fails_with_shard_quantity_too_high(self):
         """Test that we cannot load a DataBlob when shard_quantity >= num_shards."""
+        self.assertFalse(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
         self.datablob.save(
             datablobs_directory=self.datablobs_directory,
             num_shards=2,
+        )
+        self.assertTrue(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
         )
         loaded = MyDataBlob.from_filesystem(
             datablobs_directory=self.datablobs_directory,
@@ -1340,9 +1366,15 @@ class TestDataBlobSaveLoadVersions(unittest.TestCase):
 
     def test_load_fails_with_shard_num_shards_and_quantity_too_high(self):
         """Test that we cannot load a DataBlob when shard_offset + shard_quantity >= num_shards."""
+        self.assertFalse(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
         self.datablob.save(
             datablobs_directory=self.datablobs_directory,
             num_shards=2,
+        )
+        self.assertTrue(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
         )
         loaded = MyDataBlob.from_filesystem(
             datablobs_directory=self.datablobs_directory,
@@ -1354,7 +1386,13 @@ class TestDataBlobSaveLoadVersions(unittest.TestCase):
 
     def test_save_vdefault_and_load(self):
         """Test that we can load and save datablobs with the default protocol."""
+        self.assertFalse(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
         self.datablob.save(datablobs_directory=self.datablobs_directory)
+        self.assertTrue(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
         loaded = MyDataBlob.from_filesystem(
             datablobs_directory=self.datablobs_directory
         )
@@ -1363,8 +1401,14 @@ class TestDataBlobSaveLoadVersions(unittest.TestCase):
 
     def test_save_v1_and_load(self):
         """Test that we can save and load datablobs with protocol v1."""
+        self.assertFalse(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
         self.datablob.save(
             datablobs_directory=self.datablobs_directory, save_load_version=1
+        )
+        self.assertTrue(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
         )
         loaded = MyDataBlob.from_filesystem(
             datablobs_directory=self.datablobs_directory
@@ -1374,9 +1418,15 @@ class TestDataBlobSaveLoadVersions(unittest.TestCase):
 
     def test_save_v2_and_load(self):
         """Test that we can save and load datablobs with protocol v2."""
+        self.assertFalse(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
+        )
         self.datablob.save(
             datablobs_directory=self.datablobs_directory,
             save_load_version=2,
+        )
+        self.assertTrue(
+            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
         )
         loaded = MyDataBlob.from_filesystem(
             datablobs_directory=self.datablobs_directory
