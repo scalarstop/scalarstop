@@ -57,6 +57,7 @@ class TestTrainStoreMigrations(unittest.TestCase):
                             [
                                 "datablob_group_name",
                                 "datablob_hyperparams",
+                                "datablob_hyperparams_flat",
                                 "datablob_last_modified",
                                 "datablob_name",
                             ],
