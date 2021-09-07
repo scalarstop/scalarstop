@@ -27,10 +27,15 @@ attributes :py:attr:`TrainStore.engine`,
 """
 import dataclasses as _python_dataclasses
 import datetime
+import os
 import sqlite3
 import urllib.parse
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 
+import alembic.command
+import alembic.config
+import alembic.migration
+import alembic.operations
 import pandas as pd
 import sqlalchemy.dialects.postgresql
 import sqlalchemy.dialects.sqlite
@@ -52,7 +57,7 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy import insert as default_insert
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
@@ -61,6 +66,10 @@ from scalarstop.exceptions import SQLite_JSON_ModeDisabled
 from scalarstop.hyperparams import enforce_dict, flatten_hyperparams
 
 _LOGGER = Logger(__name__)
+
+_ALEMBIC_SCRIPT_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "alembic"
+)
 
 _TABLE_NAME_PREFIX = "scalarstop__"
 
@@ -185,7 +194,6 @@ class _TrainStoreTables:
             Column("datablob_name", Text, primary_key=True, nullable=False),
             Column("datablob_group_name", Text, nullable=False),
             Column("datablob_hyperparams", JSON, nullable=False),
-            Column("datablob_hyperparams_flat", JSON, nullable=True),
             Column(
                 "datablob_last_modified",
                 DateTime(timezone=True),
@@ -193,6 +201,7 @@ class _TrainStoreTables:
                 onupdate=utcnow,
                 nullable=False,
             ),
+            Column("datablob_hyperparams_flat", JSON, nullable=True),
             extend_existing=True,
         )
 
@@ -407,8 +416,32 @@ class TrainStore:
         self._table = _TrainStoreTables(
             table_name_prefix=self._table_name_prefix, dialect=self._engine.name
         )
+
+        # Create all of the database columns at once.
         with self._connection.begin():
+            # Create the database tables if they do not exist.
+            # But do not add columns or alter tables that already exist.
             self._table.metadata.create_all(bind=self._engine)
+            # Set up the inspector so we can csee if create_all()
+            # didn't create all of the columns that we wanted.
+            inspector = inspect(self._connection)
+            # Configure Alembic so we can manually add columns
+            # in this database transaction.
+            context = alembic.migration.MigrationContext.configure(self._connection)
+            op = alembic.operations.Operations(context)
+            # Iterate over the ScalarStop database tables,
+            # manually adding any database columns that happen to be missing.
+            for table_name, expected_table in self._table.metadata.tables.items():
+                actual_column_names = {
+                    col["name"] for col in inspector.get_columns(table_name)
+                }
+                for expected_col in expected_table.columns:
+                    if expected_col.name not in actual_column_names:
+                        _LOGGER.warning(
+                            "Manually creating the new database column "
+                            f"`{table_name}.{expected_col.name}`."
+                        )
+                        op.add_column(table_name, expected_col)  # type: ignore
 
     def __repr__(self) -> str:
         return f"<sp.TrainStore {self._connection_string_no_password}>"
