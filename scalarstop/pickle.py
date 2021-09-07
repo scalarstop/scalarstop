@@ -18,7 +18,7 @@ _PICKLE_ERRORS = "strict"
 def load(file: Union[BinaryIO, TextIO]) -> Any:
     """Load a Python object from a file handle."""
     return cloudpickle.load(
-        file=file,
+        file,
         fix_imports=_PICKLE_FIX_IMPORTS,
         encoding=_PICKLE_ENCODING,
         errors=_PICKLE_ERRORS,
@@ -28,7 +28,7 @@ def load(file: Union[BinaryIO, TextIO]) -> Any:
 def loads(data: str) -> Any:
     """Load a Python object from a string."""
     return cloudpickle.loads(
-        data=data,
+        data,
         fix_imports=_PICKLE_FIX_IMPORTS,
         encoding=_PICKLE_ENCODING,
         errors=_PICKLE_ERRORS,
@@ -38,7 +38,7 @@ def loads(data: str) -> Any:
 def dump(*, obj: Any, file: Union[BinaryIO, TextIO]) -> None:
     """Dump a Python object to a file handle."""
     cloudpickle.dump(
-        obj=obj,
+        obj,
         file=file,
         protocol=_PICKLE_PROTOCOL_VERSION,
     )
@@ -47,7 +47,7 @@ def dump(*, obj: Any, file: Union[BinaryIO, TextIO]) -> None:
 def dumps(obj: Any) -> str:
     """Dump a Python object to a string."""
     dumped = cloudpickle.dumps(
-        obj=obj,
+        obj,
         protocol=_PICKLE_PROTOCOL_VERSION,
     )
     return cast(str, dumped)
