@@ -10,6 +10,7 @@ import unittest
 from sqlalchemy import inspect
 
 import scalarstop as sp
+from tests.fixtures import requires_sqlite_json
 
 
 def get_column_names(inspector, table_name):
@@ -20,6 +21,7 @@ def get_column_names(inspector, table_name):
     return sorted([col["name"] for col in inspector.get_columns(table_name)])
 
 
+@requires_sqlite_json
 class TestTrainStoreMigrations(unittest.TestCase):
     """Tests for the TrainStore's automatic migration features."""
 
