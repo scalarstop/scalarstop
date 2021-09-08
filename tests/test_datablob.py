@@ -22,7 +22,9 @@ from tests.assertions import (
     assert_dataframes_are_equal,
     assert_directory,
     assert_hyperparams_are_equal,
+    assert_hyperparams_flat_are_equal,
     assert_tfdatas_are_equal,
+    tfdata_as_list,
     tfdata_get_first_shape_len,
 )
 
@@ -50,15 +52,21 @@ class MyDataBlob(sp.DataBlob):
 
     def set_training(self):
         """Set the training tfdata."""
-        return tf.data.Dataset.from_tensor_slices([1, 2, 3, 4, 5])
+        return tf.data.Dataset.from_tensor_slices([1, 2, 3, 4, 5]).map(
+            lambda x: x * self.hyperparams.a
+        )
 
     def set_validation(self):
         """Set the validation tfdata."""
-        return tf.data.Dataset.from_tensor_slices([6, 7, 8, 9, 10])
+        return tf.data.Dataset.from_tensor_slices([6, 7, 8, 9, 10]).map(
+            lambda x: x * self.hyperparams.a
+        )
 
     def set_test(self):
         """Set the test tfdata."""
-        return tf.data.Dataset.from_tensor_slices([11, 12, 13, 14, 15])
+        return tf.data.Dataset.from_tensor_slices([11, 12, 13, 14, 15]).map(
+            lambda x: x * self.hyperparams.a
+        )
 
 
 class MyDataBlobArbitraryRows(sp.DataBlob):
@@ -273,6 +281,51 @@ class MyAppendDataBlob(sp.AppendDataBlob):
         return tfdata.map(
             lambda row: row * self.hyperparams.coefficient,
         )
+
+
+class MyAppendDataBlobConflictA(sp.AppendDataBlob):
+    """
+    An AppendDataBlob whose hyperparam `a` is intended to
+    conflict with MyDataBlob.
+    """
+
+    @sp.dataclass
+    class Hyperparams(sp.AppendHyperparamsType):
+        """Hyperparams for MyAppendDataBlobConflictA."""
+
+        a: int
+        c: int
+        d: int
+
+    hyperparams: "MyAppendDataBlobConflictA.Hyperparams"
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        """Multiply the input tf.data.Dataset by our `a` hyperparameter."""
+        return tfdata.map(lambda x: x * self.hyperparams.a)
+
+
+class MyAppendDataBlobConflictB(sp.AppendDataBlob):
+    """
+    An AppendDataBlob whose hyperparam `b` is intended to
+    conflict with MyDataBlob.
+
+    The hyperparam `c` is also meant to conflict with
+    MyAppendDataBlobConflictA.
+    """
+
+    @sp.dataclass
+    class Hyperparams(sp.AppendHyperparamsType):
+        """Hyperparams for MyAppendDataBlobConflictB."""
+
+        b: "str"
+        c: int
+        e: int
+
+    hyperparams: "MyAppendDataBlobConflictB.Hyperparams"
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        """Multiply the input tf.data.Dataset by our `c` hyperparameter."""
+        return tfdata.map(lambda x: x * self.hyperparams.c)
 
 
 class MyAppendDataBlobNoHyperparams(sp.AppendDataBlob):
@@ -935,9 +988,7 @@ class Test_CacheDataBlob(DataBlobTestCase):
         cached = blob.cache(
             precache_training=True, precache_validation=True, precache_test=True
         )
-        self.assertEqual(blob.name, cached.name)
-        self.assertEqual(blob.group_name, cached.group_name)
-        self.assertEqual(blob.hyperparams, cached.hyperparams)
+        assert_datablob_metadatas_are_equal(blob, cached)
         # The training, validation, and test sets added 9 each. 9 + 18 brings us to 27.
         self.assertEqual(cached.count, 27)
         for subtype in ["training", "validation", "test"]:
@@ -983,6 +1034,11 @@ class Test_WithOptionsDataBlob(DataBlobTestCase):
         # Try setting the AutoShardPolicy to DATA.
         blob_with_options = blob.with_options(self.tf_options)
 
+        assert_hyperparams_are_equal(blob.hyperparams, blob_with_options.hyperparams)
+        assert_hyperparams_flat_are_equal(
+            blob.hyperparams_flat, blob_with_options.hyperparams_flat
+        )
+
         # Check that the sharding policy has been properly applied.
         for subtype in ["training", "validation", "test"]:
             with self.subTest(subtype):
@@ -999,20 +1055,24 @@ class Test_WithOptionsDataBlob(DataBlobTestCase):
         AUTO = tf.data.experimental.AutoShardPolicy.AUTO
         DATA = tf.data.experimental.AutoShardPolicy.DATA
         blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
-        blob_w_options = blob.with_options(
+        blob_with_options = blob.with_options(
             self.tf_options,
             validation=False,
         )
+        assert_hyperparams_are_equal(blob.hyperparams, blob_with_options.hyperparams)
+        assert_hyperparams_flat_are_equal(
+            blob.hyperparams_flat, blob_with_options.hyperparams_flat
+        )
         self.assertEqual(
-            blob_w_options.training.options().experimental_distribute.auto_shard_policy,
+            blob_with_options.training.options().experimental_distribute.auto_shard_policy,
             DATA,
         )
         self.assertEqual(
-            blob_w_options.validation.options().experimental_distribute.auto_shard_policy,
+            blob_with_options.validation.options().experimental_distribute.auto_shard_policy,
             AUTO,
         )
         self.assertEqual(
-            blob_w_options.test.options().experimental_distribute.auto_shard_policy,
+            blob_with_options.test.options().experimental_distribute.auto_shard_policy,
             DATA,
         )
 
@@ -1128,13 +1188,17 @@ class TestAppendDataBlob(unittest.TestCase):
 
     def assert_parentage(self, *, parent, append):
         """A basket of assertions for parent and child DataBlobs."""
-        # Check that we have embedded the parent data.
-        self.assertEqual(append.hyperparams.parent.name, parent.name)
-        self.assertEqual(append.hyperparams.parent.group_name, parent.group_name)
-        self.assertEqual(
-            sp.enforce_dict(append.parent.hyperparams),
-            sp.enforce_dict(parent.hyperparams),
-        )
+        # Check append.parent points to parent.
+        assert_datablob_metadatas_are_equal(parent, append.parent)
+        assert_datablobs_tfdatas_are_equal(parent, append.parent)
+
+        # Check that append.hyperparams contains the parent's hyperparams.
+        self.assertEqual(parent.name, append.hyperparams.parent.name)
+        self.assertEqual(parent.group_name, append.hyperparams.parent.group_name)
+
+        # Check that we have embedded the parent's hyperparams.
+        assert_hyperparams_are_equal(parent.hyperparams, append.parent.hyperparams)
+
         # Check that our AppendDataset has a unique name
         # that is different from the parent.
         self.assertTrue(append.name != parent.name)
@@ -1149,6 +1213,11 @@ class TestAppendDataBlob(unittest.TestCase):
         """
         parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
         append = sp.AppendDataBlob(parent=parent)
+        self.assert_parentage(parent=parent, append=append)
+        assert_hyperparams_flat_are_equal(
+            parent.hyperparams_flat, append.hyperparams_flat
+        )
+
         with self.assertRaises(sp.exceptions.IsNotImplemented):
             append.training  # pylint: disable=pointless-statement
         with self.assertRaises(sp.exceptions.IsNotImplemented):
@@ -1159,13 +1228,17 @@ class TestAppendDataBlob(unittest.TestCase):
     def test_success(self):
         """Test that AppendDataBlob works."""
         coefficient = 10
-        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        append_hyperparams = dict(coefficient=coefficient)
+        parent_hyperparams = dict(a=1, b="hi")
+        parent = MyDataBlob(hyperparams=parent_hyperparams, secret="s1")
         append = MyAppendDataBlob(
-            parent=parent, hyperparams=dict(coefficient=coefficient), secret2="secret2"
+            parent=parent, hyperparams=append_hyperparams, secret2="secret2"
         )
         # Assert the basics.
         self.assert_parentage(parent=parent, append=append)
-
+        assert_hyperparams_flat_are_equal(
+            dict(**parent_hyperparams, **append_hyperparams), append.hyperparams_flat
+        )
         self.assertEqual(
             set(sp.enforce_dict(append.hyperparams)), set(["parent", "coefficient"])
         )
@@ -1182,11 +1255,15 @@ class TestAppendDataBlob(unittest.TestCase):
 
     def test_success_no_additional_hyperparams(self):
         """Test that AppendDataBlob works when we have no additional hyperparams to add."""
-        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        parent_hyperparams = dict(a=1, b="hi")
+        parent = MyDataBlob(hyperparams=parent_hyperparams, secret="s1")
         append = MyAppendDataBlobNoHyperparams(parent=parent)
 
         # Assert the basics.
         self.assert_parentage(parent=parent, append=append)
+        assert_hyperparams_flat_are_equal(
+            parent.hyperparams_flat, append.hyperparams_flat
+        )
 
         # Assert that we have no other hyperparams.
         self.assertEqual(set(sp.enforce_dict(append.hyperparams)), set(["parent"]))
@@ -1218,13 +1295,20 @@ class TestAppendDataBlob(unittest.TestCase):
 
     def test_batch(self):
         """Test batching on AppendDataBlob."""
-        parent = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
+        append_hyperparams = dict(coefficient=10)
+        parent_hyperparams = dict(a=1, b="hi")
+        parent = MyDataBlob(hyperparams=parent_hyperparams, secret="s1")
         append = MyAppendDataBlob(
             parent=parent,
-            hyperparams=dict(coefficient=10),
+            hyperparams=append_hyperparams,
             secret2="secret2",
         )
+        self.assert_parentage(parent=parent, append=append)
         batched = append.batch(2)
+        self.assert_parentage(parent=parent, append=batched)
+        assert_hyperparams_flat_are_equal(
+            dict(**parent_hyperparams, **append_hyperparams), batched.hyperparams_flat
+        )
         for subtype in ["training", "validation", "test"]:
             with self.subTest(subtype):
                 lst = list(getattr(batched, subtype))
@@ -1291,6 +1375,55 @@ class TestAppendDataBlob(unittest.TestCase):
             )
             assert_datablob_metadatas_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)
+
+    def test_hyperparams_flat_works(self):
+        """
+        Assert that the hyperparams_flat() property flattens
+        nested hyperparams from AppendDataBlobs.
+        """
+        parent = MyDataBlob(hyperparams=dict(a=2, b="hi"), secret="s1")
+        child = MyAppendDataBlobConflictA(
+            parent=parent, hyperparams=dict(a=5, c=3, d=4)
+        )
+        grandchild = MyAppendDataBlobConflictB(
+            parent=child, hyperparams=dict(b="lol", c=6, e=7)
+        )
+
+        self.assert_parentage(parent=parent, append=child)
+        self.assert_parentage(parent=child, append=grandchild)
+        self.assert_parentage(parent=parent, append=grandchild.parent)
+
+        self.assertEqual(
+            grandchild.hyperparams.parent.hyperparams.parent.name, parent.name
+        )
+        self.assertEqual(
+            grandchild.hyperparams.parent.hyperparams.parent.group_name,
+            parent.group_name,
+        )
+        assert_hyperparams_are_equal(
+            grandchild.hyperparams.parent.hyperparams.parent.hyperparams,
+            parent.hyperparams,
+        )
+
+        self.assertEqual(parent.hyperparams_flat, dict(a=2, b="hi"))
+        self.assertEqual(child.hyperparams_flat, dict(a=5, b="hi", c=3, d=4))
+        self.assertEqual(grandchild.hyperparams_flat, dict(a=5, b="lol", d=4, c=6, e=7))
+
+        self.assertEqual(parent.hyperparams_flat.a, 2)
+        self.assertEqual(parent.hyperparams_flat.b, "hi")
+        self.assertEqual(child.hyperparams_flat.a, 5)
+        self.assertEqual(child.hyperparams_flat.b, "hi")
+        self.assertEqual(child.hyperparams_flat.c, 3)
+        self.assertEqual(child.hyperparams_flat.d, 4)
+        self.assertEqual(grandchild.hyperparams_flat.a, 5)
+        self.assertEqual(grandchild.hyperparams_flat.b, "lol")
+        self.assertEqual(grandchild.hyperparams_flat.c, 6)
+        self.assertEqual(grandchild.hyperparams_flat.d, 4)
+        self.assertEqual(grandchild.hyperparams_flat.e, 7)
+
+        self.assertEqual([2, 4, 6, 8, 10], tfdata_as_list(parent.training))
+        self.assertEqual([10, 20, 30, 40, 50], tfdata_as_list(child.training))
+        self.assertEqual([60, 120, 180, 240, 300], tfdata_as_list(grandchild.training))
 
 
 class TestDataBlobSaveLoadVersions(unittest.TestCase):
