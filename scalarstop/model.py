@@ -416,8 +416,10 @@ class KerasModel(Model):
         # The experimental_custom_gradients save option is only available
         # on TensorFlow 2.6.0 and newer.
         try:
-            save_options = tf.saved_model.SaveOptions(
-                experimental_custom_gradients=True
+            save_options = (
+                tf.saved_model.SaveOptions(  # pylint: disable=unexpected-keyword-arg
+                    experimental_custom_gradients=True
+                )
             )
         except TypeError:
             save_options = None
