@@ -12,7 +12,9 @@ from sqlalchemy.exc import IntegrityError
 import scalarstop as sp
 from tests.fixtures import (
     MyDataBlob,
+    MyDataBlob2,
     MyModelTemplate,
+    MyModelTemplate2,
     requires_external_database,
     requires_sqlite_json,
 )
@@ -178,6 +180,146 @@ class TrainStoreUnits:  # pylint: disable=no-member
                 "mt_MyModelTemplate-29utnha73paz6fvwivrs5fn6__d_MyDataBlob-mftoseayyazof6cibziqosm"
             ],
         )
+
+    def test_list_models(self):  # pylint: disable=too-many-statements
+        """
+        Test :py:meth:`~scalarstop.TrainStore.list_models`.
+
+        This test creates several :py:class:`~scalarstop.DataBlob` s
+        and :py:class:`~scalarstop.ModelTemplate` s with different
+        ``group_name`` and then queries for them.
+        """
+        # Create the DataBlobs.
+        db_a1 = MyDataBlob(hyperparams=dict(rows=5, cols=5)).batch(2)
+        db_a2 = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
+        db_b1 = MyDataBlob2(hyperparams=dict(rows=5, cols=5)).batch(2)
+        db_b2 = MyDataBlob2(hyperparams=dict(rows=10, cols=5)).batch(2)
+
+        # Insert the DataBlobss into the TrainStore.
+        self.assertNotEqual(db_a1.group_name, db_b1.group_name)
+        self.assertNotEqual(db_a2.group_name, db_b2.group_name)
+        self.train_store.insert_datablob(db_a1)
+        self.train_store.insert_datablob(db_a2)
+        self.train_store.insert_datablob(db_b1)
+        self.train_store.insert_datablob(db_b2)
+
+        # Create the ModelTemplates.
+        mt_a1 = MyModelTemplate(hyperparams=dict(layer_1_units=2))
+        mt_a2 = MyModelTemplate(hyperparams=dict(layer_1_units=4))
+        mt_b1 = MyModelTemplate2(hyperparams=dict(layer_1_units=2))
+        mt_b2 = MyModelTemplate2(hyperparams=dict(layer_1_units=4))
+
+        # Insert the ModelTemplates into the TrainStore
+        self.assertNotEqual(mt_a1.group_name, mt_b1.group_name)
+        self.assertNotEqual(mt_a2.group_name, mt_b2.group_name)
+        self.train_store.insert_model_template(mt_a1)
+        self.train_store.insert_model_template(mt_a2)
+        self.train_store.insert_model_template(mt_b1)
+        self.train_store.insert_model_template(mt_b2)
+
+        # Create the Models.
+        model_a1_a1 = sp.KerasModel(model_template=mt_a1, datablob=db_a1)
+        model_a1_a2 = sp.KerasModel(model_template=mt_a1, datablob=db_a2)
+        model_a1_b1 = sp.KerasModel(model_template=mt_a1, datablob=db_b1)
+        model_a1_b2 = sp.KerasModel(model_template=mt_a1, datablob=db_b2)
+
+        model_a2_a1 = sp.KerasModel(model_template=mt_a2, datablob=db_a1)
+        model_a2_a2 = sp.KerasModel(model_template=mt_a2, datablob=db_a2)
+        model_a2_b1 = sp.KerasModel(model_template=mt_a2, datablob=db_b1)
+        model_a2_b2 = sp.KerasModel(model_template=mt_a2, datablob=db_b2)
+
+        model_b1_a1 = sp.KerasModel(model_template=mt_b1, datablob=db_a1)
+        model_b1_a2 = sp.KerasModel(model_template=mt_b1, datablob=db_a2)
+        model_b1_b1 = sp.KerasModel(model_template=mt_b1, datablob=db_b1)
+        model_b1_b2 = sp.KerasModel(model_template=mt_b1, datablob=db_b2)
+
+        model_b2_a1 = sp.KerasModel(model_template=mt_b2, datablob=db_a1)
+        model_b2_a2 = sp.KerasModel(model_template=mt_b2, datablob=db_a2)
+        model_b2_b1 = sp.KerasModel(model_template=mt_b2, datablob=db_b1)
+        model_b2_b2 = sp.KerasModel(model_template=mt_b2, datablob=db_b2)
+
+        # Insert the Models into the TrainStore.
+        self.train_store.insert_model(model_a1_a1)
+        self.train_store.insert_model(model_a1_a2)
+        self.train_store.insert_model(model_a1_b1)
+        self.train_store.insert_model(model_a1_b2)
+
+        self.train_store.insert_model(model_a2_a1)
+        self.train_store.insert_model(model_a2_a2)
+        self.train_store.insert_model(model_a2_b1)
+        self.train_store.insert_model(model_a2_b2)
+
+        self.train_store.insert_model(model_b1_a1)
+        self.train_store.insert_model(model_b1_a2)
+        self.train_store.insert_model(model_b1_b1)
+        self.train_store.insert_model(model_b1_b2)
+
+        self.train_store.insert_model(model_b2_a1)
+        self.train_store.insert_model(model_b2_a2)
+        self.train_store.insert_model(model_b2_b1)
+        self.train_store.insert_model(model_b2_b2)
+
+        # Test that we can query for all of the Models.
+        df_xx_xx = self.train_store.list_models()
+        self.assertEqual(len(df_xx_xx), 16)
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a1_a1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a1_a2.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a1_b1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a1_b2.name))
+
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a2_a1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a2_a2.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a2_b1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_a2_b2.name))
+
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b1_a1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b1_a2.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b1_b1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b1_b2.name))
+
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b2_a1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b2_a2.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b2_b1.name))
+        self.assertTrue(any(df_xx_xx["model_name"] == model_b2_b2.name))
+
+        # Test that we can query for only the models built with MyModelTemplate.
+        df_ax_xx = self.train_store.list_models(
+            model_template_group_name="MyModelTemplate"
+        )
+        self.assertEqual(len(df_ax_xx), 8)
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a1_a1.name))
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a1_a2.name))
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a1_b1.name))
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a1_b2.name))
+
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a2_a1.name))
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a2_a2.name))
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a2_b1.name))
+        self.assertTrue(any(df_ax_xx["model_name"] == model_a2_b2.name))
+
+        # Test that we can query for only othe models built with MyDataBlob
+        df_xx_ax = self.train_store.list_models(datablob_group_name="MyDataBlob")
+        self.assertEqual(len(df_xx_ax), 8)
+        self.assertTrue(any(df_xx_ax["model_name"] == model_a1_a1.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_a1_a2.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_a2_a1.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_a2_a2.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_b1_a1.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_b1_a2.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_b2_a1.name))
+        self.assertTrue(any(df_xx_ax["model_name"] == model_b2_a2.name))
+
+        # Test that we can query for only the models built with
+        # MyModelTemplate as a ModelTemplate and MyDataBlob as a DataBlob.
+        df_ax_ax = self.train_store.list_models(
+            model_template_group_name="MyModelTemplate",
+            datablob_group_name="MyDataBlob",
+        )
+        self.assertEqual(len(df_ax_ax), 4)
+        self.assertTrue(any(df_ax_ax["model_name"] == model_a1_a1.name))
+        self.assertTrue(any(df_ax_ax["model_name"] == model_a1_a2.name))
+        self.assertTrue(any(df_ax_ax["model_name"] == model_a2_a1.name))
+        self.assertTrue(any(df_ax_ax["model_name"] == model_a2_a2.name))
 
     def test_insert_model_epoch(self):
         """Test :py:meth:`~scalarstop.TrainStore.insert_model_epoch`."""
