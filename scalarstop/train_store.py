@@ -878,11 +878,11 @@ class TrainStore:
             raise _datablob_value_error
         if datablob_name:
             where_conditions.append(
-                self.table.model.c.datablob_name.in_(_enforce_list(datablob_name))
+                self.table.datablob.c.datablob_name.in_(_enforce_list(datablob_name))
             )
         elif datablob_group_name:
             where_conditions.append(
-                self.table.model.c.datablob_group_name.in_(
+                self.table.datablob.c.datablob_group_name.in_(
                     _enforce_list(datablob_group_name)
                 )
             )
@@ -891,13 +891,13 @@ class TrainStore:
             raise _model_template_value_error
         if model_template_name:
             where_conditions.append(
-                self.table.model.c.model_template_name.in_(
+                self.table.model_template.c.model_template_name.in_(
                     _enforce_list(model_template_name)
                 )
             )
         elif model_template_group_name:
             where_conditions.append(
-                self.table.model.c.model_template_group_name.in_(
+                self.table.model_template.c.model_template_group_name.in_(
                     _enforce_list(model_template_group_name)
                 )
             )
