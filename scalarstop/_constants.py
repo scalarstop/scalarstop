@@ -1,6 +1,6 @@
 """Private constants for filenames and paths."""
 
-_DEFAULT_SAVE_LOAD_VERSION = 2
+_DEFAULT_SAVE_LOAD_VERSION = 3
 _METADATA_JSON_FILENAME = "metadata.json"
 _METADATA_PICKLE_FILENAME = "metadata.pickle"
 _ELEMENT_SPEC_FILENAME = "element_spec.pickle"

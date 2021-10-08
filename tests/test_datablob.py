@@ -1426,168 +1426,32 @@ class TestAppendDataBlob(unittest.TestCase):
         self.assertEqual([60, 120, 180, 240, 300], tfdata_as_list(grandchild.training))
 
 
-class TestDataBlobSaveLoadVersions(unittest.TestCase):
+class TestDataBlobSaveLoadSharding(unittest.TestCase):
     """
-    Test the ``load_save_version`` part of DataBlob.
+    Test that we can save and load DataBlobs with sharding enabled.
 
-    We want to make sure that we can version the protocol
-    that we use to save and load DataBlobs to/from disk.
-    Ideally, we want ScalarStop to be both backwards-compatible
-    and forwards-compatible.
+    When implementing new Save/Load versions, make sure to add
+    the new version number to the below lists:
+     - ``save_load_versions``
+     - ``save_load_versions_that_support_sharding``
+
+    ``save_load_versions`` lists all supported versions, but versions
+    1 and 2 do not correctly support sharding. Versions 3 and newer
+    should support sharding.
     """
 
-    @classmethod
-    def setUpClass(cls):
-        cls.datablob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
-
-    def setUp(self):
-        self._datablobs_directory_handle = (
-            tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        )
-        self.datablobs_directory = self._datablobs_directory_handle.name
-
-    def tearDown(self):
-        self._datablobs_directory_handle.cleanup()
-
-    def test_save_v1_does_not_support_sharding(self):
-        """Test that the ``load_save_version`` 1 does not support sharding."""
-        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
-            self.datablob.save(
-                datablobs_directory=self.datablobs_directory,
-                save_load_version=1,
-                num_shards=2,
-            )
-        self.assertFalse(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-
-    def test_load_fails_with_shard_offset_too_high(self):
-        """Test that we cannot load a DataBlob when shard_offset >= num_shards."""
-        self.datablob.save(
-            datablobs_directory=self.datablobs_directory,
-            num_shards=2,
-        )
-        self.assertTrue(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        loaded = MyDataBlob.from_filesystem(
-            datablobs_directory=self.datablobs_directory,
-            shard_offset=3,
-        )
-        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
-            loaded.training  # pylint: disable=pointless-statement
-
-    def test_load_fails_with_shard_quantity_too_high(self):
-        """Test that we cannot load a DataBlob when shard_quantity >= num_shards."""
-        self.assertFalse(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        self.datablob.save(
-            datablobs_directory=self.datablobs_directory,
-            num_shards=2,
-        )
-        self.assertTrue(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        loaded = MyDataBlob.from_filesystem(
-            datablobs_directory=self.datablobs_directory,
-            shard_offset=0,
-            shard_quantity=4,
-        )
-        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
-            loaded.training  # pylint: disable=pointless-statement
-
-    def test_load_fails_with_shard_num_shards_and_quantity_too_high(self):
-        """Test that we cannot load a DataBlob when shard_offset + shard_quantity >= num_shards."""
-        self.assertFalse(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        self.datablob.save(
-            datablobs_directory=self.datablobs_directory,
-            num_shards=2,
-        )
-        self.assertTrue(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        loaded = MyDataBlob.from_filesystem(
-            datablobs_directory=self.datablobs_directory,
-            shard_offset=2,
-            shard_quantity=2,
-        )
-        with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
-            loaded.training  # pylint: disable=pointless-statement
-
-    def test_save_vdefault_and_load(self):
-        """Test that we can load and save datablobs with the default protocol."""
-        self.assertFalse(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        self.datablob.save(datablobs_directory=self.datablobs_directory)
-        self.assertTrue(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        loaded = MyDataBlob.from_filesystem(
-            datablobs_directory=self.datablobs_directory
-        )
-        assert_datablob_metadatas_are_equal(self.datablob, loaded)
-        assert_datablobs_tfdatas_are_equal(self.datablob, loaded)
-
-    def test_save_v1_and_load(self):
-        """Test that we can save and load datablobs with protocol v1."""
-        self.assertFalse(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        self.datablob.save(
-            datablobs_directory=self.datablobs_directory, save_load_version=1
-        )
-        self.assertTrue(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        loaded = MyDataBlob.from_filesystem(
-            datablobs_directory=self.datablobs_directory
-        )
-        assert_datablob_metadatas_are_equal(self.datablob, loaded)
-        assert_datablobs_tfdatas_are_equal(self.datablob, loaded)
-
-    def test_save_v2_and_load(self):
-        """Test that we can save and load datablobs with protocol v2."""
-        self.assertFalse(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        self.datablob.save(
-            datablobs_directory=self.datablobs_directory,
-            save_load_version=2,
-        )
-        self.assertTrue(
-            self.datablob.exists_in_datablobs_directory(self.datablobs_directory)
-        )
-        loaded = MyDataBlob.from_filesystem(
-            datablobs_directory=self.datablobs_directory
-        )
-        assert_datablob_metadatas_are_equal(self.datablob, loaded)
-        assert_datablobs_tfdatas_are_equal(self.datablob, loaded)
-
-    def test_save_v3_and_load(self):
-        """We we haven't implemented Save/Load version 3 yet, so we expect an exception."""
-        with self.assertRaises(sp.exceptions.UnsupportedDataBlobSaveLoadVersion):
-            self.datablob.save(
-                datablobs_directory=self.datablobs_directory,
-                save_load_version=3,
-            )
-
-
-class TestDataBlobSharding(unittest.TestCase):
-    """
-    Test that we can load and save DataBlobs with sharding enabled.
-    """
+    save_load_versions = sorted(set([1, 2, 3, _DEFAULT_SAVE_LOAD_VERSION]))
+    save_load_versions_that_support_sharding = sorted(
+        set([3, _DEFAULT_SAVE_LOAD_VERSION])
+    )
 
     @classmethod
     def setUpClass(cls):
         cls.datablob = MyDataBlobArbitraryRows(
             hyperparams=dict(
-                num_training=12,
-                num_validation=13,
-                num_test=3,
+                num_training=1000,
+                num_validation=333,
+                num_test=1001,
             ),
         )
 
@@ -1602,48 +1466,230 @@ class TestDataBlobSharding(unittest.TestCase):
         ][0]
         return len(os.listdir(os.path.join(shard_parent_directory, shard_dir_name)))
 
-    def test_sharding_default(self):
-        """Test that sharding works with the default parameter values."""
-        expected_num_shards = 1
-        with tempfile.TemporaryDirectory() as datablobs_directory:
-            self.datablob.save(datablobs_directory=datablobs_directory)
-            for subtype in ["training", "validation", "test"]:
-                with self.subTest(subtype):
-                    actual_num_shards = self._get_num_shards(
-                        datablobs_directory=datablobs_directory, subtype=subtype
-                    )
-                    self.assertEqual(expected_num_shards, actual_num_shards)
+    def test_save_v4_and_load(self):
+        """
+        We we haven't implemented Save/Load version 4 yet, so we expect an exception.
 
-    def test_sharding_with_shard_quantity_1(self):
-        """Test that we can read/and write a DataBlob in multiple shards (with shard_quantity=1)."""
-        for expected_num_shards in range(1, 4):
+        If you have implemented v4, then add change this test to refer to v5.
+        """
+        with tempfile.TemporaryDirectory() as datablobs_directory:
+            with self.assertRaises(sp.exceptions.UnsupportedDataBlobSaveLoadVersion):
+                self.datablob.save(
+                    datablobs_directory=datablobs_directory,
+                    save_load_version=4,
+                )
+
+    def test_default_num_shards_is_1(self):
+        """Test that we create only 1 shard by default."""
+        expected_num_shards = 1
+        for save_load_version in self.save_load_versions:
             with tempfile.TemporaryDirectory() as datablobs_directory:
                 self.datablob.save(
                     datablobs_directory=datablobs_directory,
-                    num_shards=expected_num_shards,
+                    save_load_version=save_load_version,
                 )
                 for subtype in ["training", "validation", "test"]:
-                    with self.subTest(
-                        subtype=subtype, expected_num_shards=expected_num_shards
-                    ):
+                    with self.subTest(subtype):
                         actual_num_shards = self._get_num_shards(
                             datablobs_directory=datablobs_directory, subtype=subtype
                         )
                         self.assertEqual(expected_num_shards, actual_num_shards)
 
-                        for shard_offset in range(expected_num_shards):
+    def test_save_v1_does_not_support_sharding(self):
+        """Test that the ``save_load_version`` 1 does not support sharding."""
+        with tempfile.TemporaryDirectory() as datablobs_directory:
+            with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                self.datablob.save(
+                    datablobs_directory=datablobs_directory,
+                    save_load_version=1,
+                    num_shards=2,
+                )
+            self.assertFalse(
+                self.datablob.exists_in_datablobs_directory(datablobs_directory)
+            )
+
+    def test_load_fails_with_shard_offset_too_high(self):
+        """Test that we cannot load a DataBlob when shard_offset >= num_shards."""
+        for save_load_version in self.save_load_versions_that_support_sharding:
+            with tempfile.TemporaryDirectory() as datablobs_directory:
+                with self.subTest(save_load_version=save_load_version):
+                    self.datablob.save(
+                        datablobs_directory=datablobs_directory,
+                        num_shards=2,
+                        save_load_version=save_load_version,
+                    )
+                    self.assertTrue(
+                        self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    loaded = MyDataBlobArbitraryRows.from_filesystem(
+                        hyperparams=self.datablob.hyperparams,
+                        datablobs_directory=datablobs_directory,
+                        shard_offset=3,
+                    )
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.training  # pylint: disable=pointless-statement
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.validation  # pylint: disable=pointless-statement
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.test  # pylint: disable=pointless-statement
+
+    def test_load_fails_with_shard_quantity_too_high(self):
+        """Test that we cannot load a DataBlob when shard_quantity >= num_shards."""
+        for save_load_version in self.save_load_versions_that_support_sharding:
+            with tempfile.TemporaryDirectory() as datablobs_directory:
+                with self.subTest(save_load_version=save_load_version):
+                    self.assertFalse(
+                        self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    self.datablob.save(
+                        datablobs_directory=datablobs_directory,
+                        num_shards=2,
+                        save_load_version=save_load_version,
+                    )
+                    self.assertTrue(
+                        self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    loaded = MyDataBlobArbitraryRows.from_filesystem(
+                        hyperparams=self.datablob.hyperparams,
+                        datablobs_directory=datablobs_directory,
+                        shard_offset=0,
+                        shard_quantity=4,
+                    )
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.training  # pylint: disable=pointless-statement
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.validation  # pylint: disable=pointless-statement
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.test  # pylint: disable=pointless-statement
+
+    def test_load_fails_with_shard_num_shards_and_quantity_too_high(self):
+        """Test that we cannot load a DataBlob when shard_offset + shard_quantity >= num_shards."""
+        for save_load_version in self.save_load_versions_that_support_sharding:
+            with tempfile.TemporaryDirectory() as datablobs_directory:
+                with self.subTest(save_load_version=save_load_version):
+                    self.assertFalse(
+                        self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    self.datablob.save(
+                        datablobs_directory=datablobs_directory,
+                        num_shards=2,
+                        save_load_version=save_load_version,
+                    )
+                    self.assertTrue(
+                        self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    loaded = MyDataBlobArbitraryRows.from_filesystem(
+                        hyperparams=self.datablob.hyperparams,
+                        datablobs_directory=datablobs_directory,
+                        shard_offset=2,
+                        shard_quantity=2,
+                    )
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.training  # pylint: disable=pointless-statement
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.validation  # pylint: disable=pointless-statement
+                    with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
+                        loaded.test  # pylint: disable=pointless-statement
+
+    def test_varying_shards(self):
+        """Test that we can write a multi-shard DataBlob and read back varying fractions of them."""
+
+        def _select_row(_row_idx, row):
+            return row
+
+        for save_load_version in self.save_load_versions_that_support_sharding:
+            for num_shards in [5, 6, 12, 47, 48, 192]:
+                with tempfile.TemporaryDirectory() as datablobs_directory:
+                    self.datablob.save(
+                        datablobs_directory=datablobs_directory,
+                        num_shards=num_shards,
+                        save_load_version=save_load_version,
+                    )
+                    for subtype in ["training", "validation", "test"]:
+                        with self.subTest(
+                            subtype=subtype,
+                            num_shards=num_shards,
+                            save_load_version=save_load_version,
+                        ):
+                            actual_num_shards = self._get_num_shards(
+                                datablobs_directory=datablobs_directory, subtype=subtype
+                            )
+                            self.assertEqual(num_shards, actual_num_shards)
+
+                            for shard_offset in [0, 1, num_shards // 2]:
+                                for shard_quantity in [
+                                    1,
+                                    num_shards // 2,
+                                    num_shards - shard_offset,
+                                ]:
+                                    with self.subTest(
+                                        shard_offset=shard_offset,
+                                        shard_quantity=shard_quantity,
+                                    ):
+                                        loaded = (
+                                            MyDataBlobArbitraryRows.from_filesystem(
+                                                hyperparams=self.datablob.hyperparams,
+                                                datablobs_directory=datablobs_directory,
+                                                shard_offset=shard_offset,
+                                                shard_quantity=shard_quantity,
+                                            )
+                                        )
+                                        assert_datablob_metadatas_are_equal(
+                                            self.datablob, loaded
+                                        )
+
+                                        def _filter(
+                                            row_idx, _row
+                                        ):  # pylint: disable=cell-var-from-loop,chained-comparison
+                                            shard_idx = row_idx % num_shards
+                                            above_min = shard_idx >= shard_offset
+                                            below_max = (
+                                                shard_idx
+                                                < shard_offset + shard_quantity
+                                            )
+                                            return above_min and below_max
+
+                                        expected = list(
+                                            getattr(self.datablob, subtype)
+                                            .enumerate()
+                                            .filter(_filter)
+                                            .map(_select_row)
+                                            .as_numpy_iterator()
+                                        )
+                                        actual = list(
+                                            getattr(loaded, subtype).as_numpy_iterator()
+                                        )
+                                        self.assertEqual(len(expected), len(actual))
+                                        self.assertEqual(expected, actual)
+
+    def test_write_varying_shards_and_select_all_shards(self):
+        """Test that we can write a multi-shard DataBlob and read all of them back."""
+        for save_load_version in self.save_load_versions_that_support_sharding:
+            for expected_num_shards in [1, 2, 3, 4, 12, 47, 48, 192]:
+                with tempfile.TemporaryDirectory() as datablobs_directory:
+                    self.datablob.save(
+                        datablobs_directory=datablobs_directory,
+                        num_shards=expected_num_shards,
+                        save_load_version=save_load_version,
+                    )
+                    for subtype in ["training", "validation", "test"]:
+                        with self.subTest(
+                            subtype=subtype,
+                            expected_num_shards=expected_num_shards,
+                            save_load_version=save_load_version,
+                        ):
+                            actual_num_shards = self._get_num_shards(
+                                datablobs_directory=datablobs_directory, subtype=subtype
+                            )
+                            self.assertEqual(expected_num_shards, actual_num_shards)
+
                             loaded = MyDataBlobArbitraryRows.from_filesystem(
                                 hyperparams=self.datablob.hyperparams,
                                 datablobs_directory=datablobs_directory,
-                                shard_offset=shard_offset,
                             )
                             assert_datablob_metadatas_are_equal(self.datablob, loaded)
                             expected = list(
-                                getattr(self.datablob, subtype)
-                                .shard(
-                                    index=shard_offset, num_shards=expected_num_shards
-                                )
-                                .as_numpy_iterator()
+                                getattr(self.datablob, subtype).as_numpy_iterator()
                             )
                             actual = list(getattr(loaded, subtype).as_numpy_iterator())
                             self.assertEqual(expected, actual)
