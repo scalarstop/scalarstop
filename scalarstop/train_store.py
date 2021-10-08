@@ -130,7 +130,7 @@ def _censor_sqlalchemy_url_password(url: str) -> str:
     else:
         # Strip password from URL
         host_info = u.netloc.rpartition("@")[-1]
-        parts = u._replace(netloc="{}@{}".format(u.username, host_info))
+        parts = u._replace(netloc=f"{u.username}@{host_info}")
         safe_url = parts.geturl()
     return safe_url
 
@@ -1247,7 +1247,7 @@ class TrainStore:
                         metric_name
                     ] = current_metric_value
             values.append(current_epoch)
-        if self._engine.name == "sqlite" or self._engine.name == "postgresql":
+        if self._engine.name in ("sqlite", "postgresql"):
             insert = getattr(sqlalchemy.dialects, self._engine.name).insert
             stmt = insert(self.table.model_epoch).on_conflict_do_nothing(
                 index_elements=[
