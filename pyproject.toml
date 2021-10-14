@@ -20,8 +20,8 @@ log-with-context = "*"
 
 # These are optional dependencies installed
 # with pip extras. Seee the `tool.poetry.extras` section for more.
-tensorflow = { version = ">=2.3.0", optional = true }
-tensorflow-gpu = { version = ">=2.3.0", optional = true }
+tensorflow = { version = ">=2.5", optional = true }
+tensorflow-gpu = { version = ">=2.5", optional = true }
 
 [tool.poetry.dev-dependencies]
 # dev-dependencies does not include dependencies
