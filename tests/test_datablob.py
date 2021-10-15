@@ -1019,6 +1019,207 @@ class Test_CacheDataBlob(DataBlobTestCase):
             blob.cache(test=False, precache_test=True)
 
 
+class Test_RepeatDataBlob(DataBlobTestCase):
+    """Tests for _RepeatDataBlob."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.datablob = MyDataBlob()
+        cls.training_unchanged = [1, 2, 3, 4, 5]
+        cls.training_repeated = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5]
+        cls.validation_unchanged = [6, 7, 8, 9, 10]
+        cls.validation_repeated = [6, 7, 8, 9, 10, 6, 7, 8, 9, 10]
+        cls.test_unchanged = [11, 12, 13, 14, 15]
+        cls.test_repeated = [11, 12, 13, 14, 15, 11, 12, 13, 14, 15]
+
+    def test_repeat_finite_all(self):
+        """Test repeating the training, validation, and test sets 2x."""
+        repeated = self.datablob.repeat(2)
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_repeated,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_repeated,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_repeated,
+        )
+
+    def test_repeat_finite_training(self):
+        """Test only repeating the training set 2x."""
+        repeated = self.datablob.repeat(2, validation=False, test=False)
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_repeated,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_unchanged,
+        )
+
+    def test_repeat_finite_validation(self):
+        """Test only repeating the validation set 2x."""
+        repeated = self.datablob.repeat(2, training=False, test=False)
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_repeated,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_unchanged,
+        )
+
+    def test_repeat_finite_test(self):
+        """Test only repeating the test set 2x."""
+        repeated = self.datablob.repeat(2, training=False, validation=False)
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_repeated,
+        )
+
+    def test_repeat_infinite_all(self):
+        """
+        Test repeating the training, validation, and test sets an
+        infinite number of times.
+        """
+        for count in [None, -1]:
+            with self.subTest(count=count):
+                repeated = self.datablob.repeat(count)
+                self.assertEqual(
+                    repeated.training.cardinality(),
+                    tf.data.experimental.INFINITE_CARDINALITY,
+                )
+                self.assertEqual(
+                    list(repeated.training.take(15).as_numpy_iterator()),
+                    self.training_unchanged * 3,
+                )
+                self.assertEqual(
+                    repeated.validation.cardinality(),
+                    tf.data.experimental.INFINITE_CARDINALITY,
+                )
+                self.assertEqual(
+                    list(repeated.validation.take(15).as_numpy_iterator()),
+                    self.validation_unchanged * 3,
+                )
+                self.assertEqual(
+                    repeated.test.cardinality(),
+                    tf.data.experimental.INFINITE_CARDINALITY,
+                )
+                self.assertEqual(
+                    list(repeated.test.take(15).as_numpy_iterator()),
+                    self.test_unchanged * 3,
+                )
+
+    def test_repeat_infinite_training(self):
+        """Test only repeating the training set an infinite number of times."""
+        for count in [None, -1]:
+            with self.subTest(count=count):
+                repeated = self.datablob.repeat(count, validation=False, test=False)
+                self.assertEqual(
+                    repeated.training.cardinality(),
+                    tf.data.experimental.INFINITE_CARDINALITY,
+                )
+                self.assertEqual(
+                    list(repeated.training.take(15).as_numpy_iterator()),
+                    self.training_unchanged * 3,
+                )
+                self.assertEqual(
+                    repeated.validation.cardinality(),
+                    5,
+                )
+                self.assertEqual(
+                    list(repeated.validation.take(15).as_numpy_iterator()),
+                    self.validation_unchanged,
+                )
+                self.assertEqual(
+                    repeated.test.cardinality(),
+                    5,
+                )
+                self.assertEqual(
+                    list(repeated.test.take(15).as_numpy_iterator()),
+                    self.test_unchanged,
+                )
+
+    def test_repeat_infinite_validation(self):
+        """Test only repeating the validation set an infinite number of times."""
+        for count in [None, -1]:
+            with self.subTest(count=count):
+                repeated = self.datablob.repeat(count, training=False, test=False)
+                self.assertEqual(
+                    repeated.training.cardinality(),
+                    5,
+                )
+                self.assertEqual(
+                    list(repeated.training.take(15).as_numpy_iterator()),
+                    self.training_unchanged,
+                )
+                self.assertEqual(
+                    repeated.validation.cardinality(),
+                    tf.data.experimental.INFINITE_CARDINALITY,
+                )
+                self.assertEqual(
+                    list(repeated.validation.take(15).as_numpy_iterator()),
+                    self.validation_unchanged * 3,
+                )
+                self.assertEqual(
+                    repeated.test.cardinality(),
+                    5,
+                )
+                self.assertEqual(
+                    list(repeated.test.take(15).as_numpy_iterator()),
+                    self.test_unchanged,
+                )
+
+    def test_repeat_infinite_test(self):
+        """Test only repeating the test set an infinite number of times."""
+        for count in [None, -1]:
+            with self.subTest(count=count):
+                repeated = self.datablob.repeat(count, training=False, validation=False)
+                self.assertEqual(
+                    repeated.training.cardinality(),
+                    5,
+                )
+                self.assertEqual(
+                    list(repeated.training.take(15).as_numpy_iterator()),
+                    self.training_unchanged,
+                )
+                self.assertEqual(
+                    repeated.validation.cardinality(),
+                    5,
+                )
+                self.assertEqual(
+                    list(repeated.validation.take(15).as_numpy_iterator()),
+                    self.validation_unchanged,
+                )
+                self.assertEqual(
+                    repeated.test.cardinality(),
+                    tf.data.experimental.INFINITE_CARDINALITY,
+                )
+                self.assertEqual(
+                    list(repeated.test.take(15).as_numpy_iterator()),
+                    self.test_unchanged * 3,
+                )
+
+
 class Test_WithOptionsDataBlob(DataBlobTestCase):
     """Tests for _WithOptionsDataBlob."""
 
