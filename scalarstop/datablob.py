@@ -466,6 +466,41 @@ class DataBlob(SingleNamespace):
             precache_test=precache_test,
         )
 
+    def prefetch(
+        self,
+        buffer_size: int,
+        *,
+        training: bool = True,
+        validation: bool = True,
+        test: bool = True,
+    ) -> "DataBlob":
+        """
+        Creates a :py:class:`DataBlob` that prefetches elements for
+        performance.
+
+        Args:
+            buffer_size: The maximum number of elements that will
+                be buffered when prefetching. If the value
+                :py:meth:`tf.data.experimental.AUTOTUNE` is used,
+                then the buffer is dynamically tuned.
+
+            training: Apply the repeat operator to the training set.
+                Defaults to ``True``.
+
+            validation: Apply the repeat operator to the validation set.
+                Defaults to ``True``.
+
+            test: Apply the repeat operator to the test set.
+                Defaults to ``True``.
+        """
+        return _PrefetchDataBlob(
+            wraps=self,
+            buffer_size=buffer_size,
+            training=training,
+            validation=validation,
+            test=test,
+        )
+
     def repeat(
         self,
         count: Optional[int] = None,
@@ -1295,6 +1330,29 @@ class _CacheDataBlob(_WrapDataBlob):
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         return tfdata.cache()
+
+
+class _PrefetchDataBlob(_WrapDataBlob):
+    """
+    Prefetch elements from this :py:class:`DataBlob` for improved latency.
+    """
+
+    def __init__(
+        self,
+        *,
+        wraps: Any,
+        buffer_size: int,
+        training: bool,
+        validation: bool,
+        test: bool,
+    ):
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
+        self._buffer_size = buffer_size
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        return tfdata.prefetch(self._buffer_size)
 
 
 class _RepeatDataBlob(_WrapDataBlob):

@@ -11,6 +11,7 @@ from typing import Any, Mapping, Optional, Union
 
 import pandas as pd
 import tensorflow as tf
+import tensorflow.python as tfpy  # pylint: disable=no-name-in-module
 
 import scalarstop as sp
 from scalarstop._constants import _DEFAULT_SAVE_LOAD_VERSION
@@ -1017,6 +1018,111 @@ class Test_CacheDataBlob(DataBlobTestCase):
             blob.cache(validation=False, precache_validation=True)
         with self.assertRaises(sp.exceptions.InconsistentCachingParameters):
             blob.cache(test=False, precache_test=True)
+
+
+class Test_PrefetchDataBlob(DataBlobTestCase):
+    """Tests for _PrefetchDataBlob."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.datablob = MyDataBlob()
+        cls.buffer_sizes = [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            tf.data.experimental.AUTOTUNE,
+        ]
+
+    def test_prefetch_all(self):
+        """Test that DataBlob.prefetch() works on the training/validation/test sets."""
+        for buffer_size in self.buffer_sizes:
+            with self.subTest(buffer_size=buffer_size):
+                prefetched = self.datablob.prefetch(buffer_size)
+                self.assertIsInstance(
+                    prefetched.training, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertIsInstance(
+                    prefetched.validation, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertIsInstance(
+                    prefetched.test, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                assert_datablob_names_and_hyperparams_are_equal(
+                    self.datablob, prefetched
+                )
+                assert_datablobs_tfdatas_are_equal(self.datablob, prefetched)
+
+    def test_prefetch_training(self):
+        """Test that DataBlob.prefetch() works on the training set."""
+        for buffer_size in self.buffer_sizes:
+            with self.subTest(buffer_size=buffer_size):
+                prefetched = self.datablob.prefetch(
+                    buffer_size,
+                    validation=False,
+                    test=False,
+                )
+                self.assertIsInstance(
+                    prefetched.training, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertNotIsInstance(
+                    prefetched.validation, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertNotIsInstance(
+                    prefetched.test, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                assert_datablob_names_and_hyperparams_are_equal(
+                    self.datablob, prefetched
+                )
+                assert_datablobs_tfdatas_are_equal(self.datablob, prefetched)
+
+    def test_prefetch_validation(self):
+        """Test that DataBlob.prefetch() works on the validation set."""
+        for buffer_size in self.buffer_sizes:
+            with self.subTest(buffer_size=buffer_size):
+                prefetched = self.datablob.prefetch(
+                    buffer_size,
+                    training=False,
+                    test=False,
+                )
+                self.assertNotIsInstance(
+                    prefetched.training, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertIsInstance(
+                    prefetched.validation, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertNotIsInstance(
+                    prefetched.test, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                assert_datablob_names_and_hyperparams_are_equal(
+                    self.datablob, prefetched
+                )
+                assert_datablobs_tfdatas_are_equal(self.datablob, prefetched)
+
+    def test_prefetch_test(self):
+        """Test that DataBlob.prefetch() works on the test set."""
+        for buffer_size in self.buffer_sizes:
+            with self.subTest(buffer_size=buffer_size):
+                prefetched = self.datablob.prefetch(
+                    buffer_size,
+                    training=False,
+                    validation=False,
+                )
+                self.assertNotIsInstance(
+                    prefetched.training, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertNotIsInstance(
+                    prefetched.validation, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                self.assertIsInstance(
+                    prefetched.test, tfpy.data.ops.dataset_ops.PrefetchDataset
+                )
+                assert_datablob_names_and_hyperparams_are_equal(
+                    self.datablob, prefetched
+                )
+                assert_datablobs_tfdatas_are_equal(self.datablob, prefetched)
 
 
 class Test_RepeatDataBlob(DataBlobTestCase):
