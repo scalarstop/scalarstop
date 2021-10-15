@@ -466,6 +466,41 @@ class DataBlob(SingleNamespace):
             precache_test=precache_test,
         )
 
+    def repeat(
+        self,
+        count: Optional[int] = None,
+        *,
+        training: bool = True,
+        validation: bool = True,
+        test: bool = True,
+    ) -> "DataBlob":
+        """
+        Repeats this :py:class:`DataBlob`.
+
+        Args:
+            count: Represents the number of times that the
+                elements in the :py:class:`tf.data.Dataset` should
+                be repeated. The default behavior (if ``count`` is
+                ``None`` or ``-1``) is for the dataset be repeated
+                indefinitely.
+
+            training: Apply the repeat operator to the training set.
+                Defaults to ``True``.
+
+            validation: Apply the repeat operator to the validation set.
+                Defaults to ``True``.
+
+            test: Apply the repeat operator to the test set.
+                Defaults to ``True``.
+        """
+        return _RepeatDataBlob(
+            wraps=self,
+            count=count,
+            training=training,
+            validation=validation,
+            test=test,
+        )
+
     def with_options(
         self,
         options: tf.data.Options,
@@ -1260,6 +1295,29 @@ class _CacheDataBlob(_WrapDataBlob):
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         return tfdata.cache()
+
+
+class _RepeatDataBlob(_WrapDataBlob):
+    """
+    Repeats this :py:class:`DataBlob` a given number of times.
+    """
+
+    def __init__(
+        self,
+        *,
+        wraps: Any,
+        count: Optional[int] = None,
+        training: bool,
+        validation: bool,
+        test: bool,
+    ):
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
+        self._count = count
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        return tfdata.repeat(self._count)
 
 
 class _WithOptionsDataBlob(_WrapDataBlob):
