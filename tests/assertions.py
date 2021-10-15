@@ -8,6 +8,7 @@ import pandas as pd
 import tensorflow as tf
 
 import scalarstop as sp
+from scalarstop._constants import _DEFAULT_SAVE_LOAD_VERSION
 
 _TESTCASE = unittest.TestCase()
 
@@ -76,13 +77,80 @@ def assert_datablob_reprs_are_equal(blob1: sp.DataBlob, blob2: sp.DataBlob):
     assert_equal(repr(blob1), repr(blob2))
 
 
-def assert_datablob_metadatas_are_equal(blob1: sp.DataBlob, blob2: sp.DataBlob):
-    """Assert that datablob metadata is equal, but does not check DataFrames or Datasets."""
+def assert_datablob_names_and_hyperparams_are_equal(
+    blob1: sp.DataBlob, blob2: sp.DataBlob
+):
+    """
+    Assert that DataBlob names and hyperparams are equal.
+
+    This assertion does not check DataFrames or Datasets.
+    """
     assert_equal(repr(blob1), repr(blob2))
     assert_equal(blob1.name, blob2.name)
     assert_equal(blob1.group_name, blob2.group_name)
     assert_hyperparams_are_equal(blob1.hyperparams, blob2.hyperparams)
     assert_hyperparams_flat_are_equal(blob1.hyperparams_flat, blob2.hyperparams_flat)
+
+
+def assert_datablob_metadata_from_filesystem(
+    blob: sp.DataBlob,
+    *,
+    datablobs_directory: str,
+    save_load_version: int = _DEFAULT_SAVE_LOAD_VERSION,
+    num_shards: int = 1,
+):
+    """
+    Assert that a DataBlob's DataBlobMetadata has specific values.
+    """
+    metadata = blob.metadata_from_filesystem(
+        hyperparams=blob.hyperparams,
+        datablobs_directory=datablobs_directory,
+    )
+    metadata_dict = metadata.to_dict(hyperparams_as_dict=False)
+    assert_equal(
+        sorted(list(metadata_dict.keys())),
+        ["group_name", "hyperparams", "name", "num_shards", "save_load_version"],
+    )
+    assert_equal(
+        blob.name,
+        metadata.name,
+    )
+    assert_equal(
+        blob.name,
+        metadata_dict["name"],
+    )
+    assert_equal(
+        blob.group_name,
+        metadata.group_name,
+    )
+    assert_equal(
+        blob.group_name,
+        metadata_dict["group_name"],
+    )
+    assert_equal(
+        blob.hyperparams,
+        metadata.hyperparams,
+    )
+    assert_equal(
+        blob.hyperparams,
+        metadata_dict["hyperparams"],
+    )
+    assert_equal(
+        save_load_version,
+        metadata.save_load_version,
+    )
+    assert_equal(
+        save_load_version,
+        metadata_dict["save_load_version"],
+    )
+    assert_equal(
+        num_shards,
+        metadata.num_shards,
+    )
+    assert_equal(
+        num_shards,
+        metadata_dict["num_shards"],
+    )
 
 
 def assert_datablob_dataframes_are_equal(

@@ -1,6 +1,7 @@
 """The root Python package for ScalarStop."""
 from scalarstop import (
     datablob,
+    datablob_metadata,
     dataclasses,
     hyperparams,
     model,
@@ -17,6 +18,7 @@ from scalarstop import (
 from scalarstop.datablob import DataBlob  # isort:skip
 from scalarstop.datablob import DataFrameDataBlob  # isort:skip
 from scalarstop.datablob import AppendDataBlob  # isort:skip
+from scalarstop.datablob_metadata import DataBlobMetadata  # isort:skip
 from scalarstop.dataclasses import dataclass  # isort:skip
 from scalarstop.model_template import ModelTemplate  # isort:skip
 from scalarstop.model import Model  # isort:skip

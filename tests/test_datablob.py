@@ -17,7 +17,8 @@ from scalarstop._constants import _DEFAULT_SAVE_LOAD_VERSION
 from scalarstop._filesystem import rmtree
 from tests.assertions import (
     assert_datablob_dataframes_are_equal,
-    assert_datablob_metadatas_are_equal,
+    assert_datablob_metadata_from_filesystem,
+    assert_datablob_names_and_hyperparams_are_equal,
     assert_datablobs_tfdatas_are_equal,
     assert_dataframes_are_equal,
     assert_directory,
@@ -473,6 +474,9 @@ class TestDataBlob(DataBlobTestCase):
             # to the filesystem.
             blob.save(datablobs_directory)
             self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
+            assert_datablob_metadata_from_filesystem(
+                blob, datablobs_directory=datablobs_directory
+            )
 
             # Test that we raise an exception when the datablob already exists.
             with self.assertRaises(sp.exceptions.FileExists):
@@ -532,10 +536,13 @@ class TestDataBlob(DataBlobTestCase):
             blob = MyDataBlob(hyperparams=dict(a=1, b="hi"), secret="s1")
             blob.save(datablobs_directory)
             self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
+            assert_datablob_metadata_from_filesystem(
+                blob, datablobs_directory=datablobs_directory
+            )
             loaded = sp.DataBlob.from_exact_path(
                 os.path.join(datablobs_directory, blob.name)
             )
-            assert_datablob_metadatas_are_equal(blob, loaded)
+            assert_datablob_names_and_hyperparams_are_equal(blob, loaded)
             assert_datablobs_tfdatas_are_equal(blob, loaded)
 
     def test_load_dataset_not_found_1(self):
@@ -618,7 +625,7 @@ class TestDataBlob(DataBlobTestCase):
                     loaded = blob.from_exact_path(
                         os.path.join(datablobs_directory, blob.name)
                     )
-                    assert_datablob_metadatas_are_equal(blob, loaded)
+                    assert_datablob_names_and_hyperparams_are_equal(blob, loaded)
                     assert_datablobs_tfdatas_are_equal(blob, loaded)
 
     def test_batch_cache_save_load_permutations(self):
@@ -638,7 +645,7 @@ class TestDataBlob(DataBlobTestCase):
                     loaded = blob.from_exact_path(
                         os.path.join(datablobs_directory, blob.name)
                     )
-                    assert_datablob_metadatas_are_equal(blob, loaded)
+                    assert_datablob_names_and_hyperparams_are_equal(blob, loaded)
 
 
 class Test_WrapDataBlob(DataBlobTestCase):
@@ -988,7 +995,7 @@ class Test_CacheDataBlob(DataBlobTestCase):
         cached = blob.cache(
             precache_training=True, precache_validation=True, precache_test=True
         )
-        assert_datablob_metadatas_are_equal(blob, cached)
+        assert_datablob_names_and_hyperparams_are_equal(blob, cached)
         # The training, validation, and test sets added 9 each. 9 + 18 brings us to 27.
         self.assertEqual(cached.count, 27)
         for subtype in ["training", "validation", "test"]:
@@ -1124,6 +1131,9 @@ class TestDataFrameDataBlob(DataBlobTestCase):
             self.assertFalse(blob.exists_in_datablobs_directory(datablobs_directory))
             blob.save(datablobs_directory)
             self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
+            assert_datablob_metadata_from_filesystem(
+                blob, datablobs_directory=datablobs_directory
+            )
 
     def test_from_exact_path(self):
         """
@@ -1135,10 +1145,14 @@ class TestDataFrameDataBlob(DataBlobTestCase):
             self.assertFalse(blob.exists_in_datablobs_directory(datablobs_directory))
             blob.save(datablobs_directory)
             self.assertTrue(blob.exists_in_datablobs_directory(datablobs_directory))
+            assert_datablob_metadata_from_filesystem(
+                blob, datablobs_directory=datablobs_directory
+            )
+
             loaded = MyDataFrameDataBlob.from_exact_path(
                 os.path.join(datablobs_directory, blob.name)
             )
-            assert_datablob_metadatas_are_equal(blob, loaded)
+            assert_datablob_names_and_hyperparams_are_equal(blob, loaded)
             assert_datablobs_tfdatas_are_equal(blob, loaded)
             assert_datablob_dataframes_are_equal(blob, loaded)
 
@@ -1158,7 +1172,7 @@ class TestDataFrameDataBlob(DataBlobTestCase):
                     loaded = blob.from_exact_path(
                         os.path.join(datablobs_directory, blob.name)
                     )
-                    assert_datablob_metadatas_are_equal(blob, loaded)
+                    assert_datablob_names_and_hyperparams_are_equal(blob, loaded)
                     assert_datablobs_tfdatas_are_equal(blob, loaded)
                     assert_datablob_dataframes_are_equal(blob, loaded)
 
@@ -1179,7 +1193,7 @@ class TestDataFrameDataBlob(DataBlobTestCase):
                     loaded = blob.from_exact_path(
                         os.path.join(datablobs_directory, blob.name)
                     )
-                    assert_datablob_metadatas_are_equal(blob, loaded)
+                    assert_datablob_names_and_hyperparams_are_equal(blob, loaded)
                     assert_datablob_dataframes_are_equal(blob, loaded)
 
 
@@ -1189,7 +1203,7 @@ class TestAppendDataBlob(unittest.TestCase):
     def assert_parentage(self, *, parent, append):
         """A basket of assertions for parent and child DataBlobs."""
         # Check append.parent points to parent.
-        assert_datablob_metadatas_are_equal(parent, append.parent)
+        assert_datablob_names_and_hyperparams_are_equal(parent, append.parent)
         assert_datablobs_tfdatas_are_equal(parent, append.parent)
 
         # Check that append.hyperparams contains the parent's hyperparams.
@@ -1330,10 +1344,14 @@ class TestAppendDataBlob(unittest.TestCase):
             append.save(datablobs_directory)
             self.assertTrue(append.exists_in_datablobs_directory(datablobs_directory))
             self.assertFalse(parent.exists_in_datablobs_directory(datablobs_directory))
+            assert_datablob_metadata_from_filesystem(
+                append, datablobs_directory=datablobs_directory
+            )
+
             append_loaded = MyAppendDataBlob.from_exact_path(
                 os.path.join(datablobs_directory, append.name)
             )
-            assert_datablob_metadatas_are_equal(append, append_loaded)
+            assert_datablob_names_and_hyperparams_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)
 
     def test_from_filesystem_with_parent(self):
@@ -1352,7 +1370,7 @@ class TestAppendDataBlob(unittest.TestCase):
                 hyperparams=dict(coefficient=coefficient),
                 datablobs_directory=datablobs_directory,
             )
-            assert_datablob_metadatas_are_equal(append, append_loaded)
+            assert_datablob_names_and_hyperparams_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)
 
     def test_from_filesystem_or_new_with_parent(self):
@@ -1373,7 +1391,7 @@ class TestAppendDataBlob(unittest.TestCase):
                 secret2="secret2",
                 datablobs_directory=datablobs_directory,
             )
-            assert_datablob_metadatas_are_equal(append, append_loaded)
+            assert_datablob_names_and_hyperparams_are_equal(append, append_loaded)
             assert_datablobs_tfdatas_are_equal(append, append_loaded)
 
     def test_hyperparams_flat_works(self):
@@ -1510,21 +1528,28 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
 
     def test_load_fails_with_shard_offset_too_high(self):
         """Test that we cannot load a DataBlob when shard_offset >= num_shards."""
+        num_shards = 2
+        shard_offset = 3
         for save_load_version in self.save_load_versions_that_support_sharding:
             with tempfile.TemporaryDirectory() as datablobs_directory:
                 with self.subTest(save_load_version=save_load_version):
                     self.datablob.save(
                         datablobs_directory=datablobs_directory,
-                        num_shards=2,
+                        num_shards=num_shards,
                         save_load_version=save_load_version,
                     )
                     self.assertTrue(
                         self.datablob.exists_in_datablobs_directory(datablobs_directory)
                     )
+                    assert_datablob_metadata_from_filesystem(
+                        self.datablob,
+                        datablobs_directory=datablobs_directory,
+                        num_shards=num_shards,
+                    )
                     loaded = MyDataBlobArbitraryRows.from_filesystem(
                         hyperparams=self.datablob.hyperparams,
                         datablobs_directory=datablobs_directory,
-                        shard_offset=3,
+                        shard_offset=shard_offset,
                     )
                     with self.assertRaises(sp.exceptions.DataBlobShardingValueError):
                         loaded.training  # pylint: disable=pointless-statement
@@ -1535,6 +1560,7 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
 
     def test_load_fails_with_shard_quantity_too_high(self):
         """Test that we cannot load a DataBlob when shard_quantity >= num_shards."""
+        num_shards = 2
         for save_load_version in self.save_load_versions_that_support_sharding:
             with tempfile.TemporaryDirectory() as datablobs_directory:
                 with self.subTest(save_load_version=save_load_version):
@@ -1543,11 +1569,16 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
                     )
                     self.datablob.save(
                         datablobs_directory=datablobs_directory,
-                        num_shards=2,
+                        num_shards=num_shards,
                         save_load_version=save_load_version,
                     )
                     self.assertTrue(
                         self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    assert_datablob_metadata_from_filesystem(
+                        self.datablob,
+                        datablobs_directory=datablobs_directory,
+                        num_shards=num_shards,
                     )
                     loaded = MyDataBlobArbitraryRows.from_filesystem(
                         hyperparams=self.datablob.hyperparams,
@@ -1564,6 +1595,7 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
 
     def test_load_fails_with_shard_num_shards_and_quantity_too_high(self):
         """Test that we cannot load a DataBlob when shard_offset + shard_quantity >= num_shards."""
+        num_shards = 2
         for save_load_version in self.save_load_versions_that_support_sharding:
             with tempfile.TemporaryDirectory() as datablobs_directory:
                 with self.subTest(save_load_version=save_load_version):
@@ -1572,11 +1604,16 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
                     )
                     self.datablob.save(
                         datablobs_directory=datablobs_directory,
-                        num_shards=2,
+                        num_shards=num_shards,
                         save_load_version=save_load_version,
                     )
                     self.assertTrue(
                         self.datablob.exists_in_datablobs_directory(datablobs_directory)
+                    )
+                    assert_datablob_metadata_from_filesystem(
+                        self.datablob,
+                        datablobs_directory=datablobs_directory,
+                        num_shards=num_shards,
                     )
                     loaded = MyDataBlobArbitraryRows.from_filesystem(
                         hyperparams=self.datablob.hyperparams,
@@ -1634,7 +1671,7 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
                                                 shard_quantity=shard_quantity,
                                             )
                                         )
-                                        assert_datablob_metadatas_are_equal(
+                                        assert_datablob_names_and_hyperparams_are_equal(
                                             self.datablob, loaded
                                         )
 
@@ -1687,7 +1724,9 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
                                 hyperparams=self.datablob.hyperparams,
                                 datablobs_directory=datablobs_directory,
                             )
-                            assert_datablob_metadatas_are_equal(self.datablob, loaded)
+                            assert_datablob_names_and_hyperparams_are_equal(
+                                self.datablob, loaded
+                            )
                             expected = list(
                                 getattr(self.datablob, subtype).as_numpy_iterator()
                             )

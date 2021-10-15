@@ -12,7 +12,6 @@ that makes it easy to keep track of many datasets at once.
 """
 
 import errno
-import json
 import os
 from typing import Any, Dict, Mapping, Optional, Type, Union
 
@@ -24,8 +23,6 @@ import scalarstop.pickle
 from scalarstop._constants import (
     _DATAFRAME_FILENAME,
     _DEFAULT_SAVE_LOAD_VERSION,
-    _METADATA_JSON_FILENAME,
-    _METADATA_PICKLE_FILENAME,
     _SUBTYPE_TEST,
     _SUBTYPE_TRAINING,
     _SUBTYPE_VALIDATION,
@@ -36,7 +33,7 @@ from scalarstop._logging import Timeblock
 from scalarstop._naming import temporary_filename
 from scalarstop._single_namespace import SingleNamespace
 from scalarstop._tfdata import tfdata_load, tfdata_save
-from scalarstop.dataclasses import asdict
+from scalarstop.datablob_metadata import DataBlobMetadata
 from scalarstop.exceptions import (
     DataBlobNotFound,
     ElementSpecNotFound,
@@ -254,6 +251,28 @@ class DataBlob(SingleNamespace):
         )
 
     @classmethod
+    def metadata_from_filesystem(
+        cls,
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        datablobs_directory: str,
+    ) -> DataBlobMetadata:
+        """
+        Loads this :py:class:`DataBlob` 's :py:class:`DataBlobMetadata`
+        from the filesystem, calculating the filename from the hyperparameters.
+
+        Args:
+            hyperparams: The hyperparameters of the model that we want to load.
+
+            datablobs_directory: The parent directory of all of your saved
+                :py:class:`DataBlob` s. The exact filename is calculated
+                from the class name and hyperparams.
+        """
+        name = cls.calculate_name(hyperparams=hyperparams)
+        path = os.path.join(datablobs_directory, name)
+        return cls.metadata_from_exact_path(path)
+
+    @classmethod
     def from_filesystem_or_new(
         cls,
         *,
@@ -295,6 +314,14 @@ class DataBlob(SingleNamespace):
         return _LoadDataBlob.from_exact_path(
             path=path, shard_offset=shard_offset, shard_quantity=shard_quantity
         )
+
+    @staticmethod
+    def metadata_from_exact_path(path: str) -> DataBlobMetadata:
+        """
+        Loads this :py:class:`DataBlob` 's :py:class:`DataBlobMetadata`
+        from a directory on the filesystem.
+        """
+        return DataBlobMetadata.load(path)
 
     def exists_in_datablobs_directory(
         self,
@@ -512,48 +539,12 @@ class DataBlob(SingleNamespace):
         temp_datablob_path = temporary_filename(final_datablob_path)
         os.mkdir(temp_datablob_path)
         try:
-            # Save metadata as JSON so it is human-readable on the filesystem.
-            metadata_json_path = os.path.join(
-                temp_datablob_path, _METADATA_JSON_FILENAME
-            )
-
-            # These are the fields that we are going to identically save
-            # in both the JSON and the Pickle.
-            common_metadata = dict(
-                name=self.name,
-                group_name=self.group_name,
+            # Save DataBlob metadata to JSON and Pickle.
+            DataBlobMetadata.from_datablob(
+                datablob=self,
                 save_load_version=save_load_version,
                 num_shards=num_shards,
-            )
-
-            with open(metadata_json_path, "w", encoding="utf-8") as fh:
-                json.dump(
-                    obj=dict(
-                        **common_metadata,
-                        # When we save hyperparams to JSON, we first.
-                        # convert Python dataclasses to dictionaries.
-                        hyperparams=asdict(self.hyperparams),
-                    ),
-                    fp=fh,
-                    sort_keys=True,
-                    indent=4,
-                )
-            # Save the hyperparameter again in the pickle format.
-            # This is better for actually deserializing them.
-            metadata_pickle_path = os.path.join(
-                temp_datablob_path, _METADATA_PICKLE_FILENAME
-            )
-            with open(metadata_pickle_path, "wb") as fh:  # type: ignore
-                scalarstop.pickle.dump(
-                    obj=dict(
-                        **common_metadata,
-                        # When we save hyperparams to Pickle, we make
-                        # sure to serialize the hyperparams as a Python
-                        # dataclass.
-                        hyperparams=self.hyperparams,
-                    ),
-                    file=fh,
-                )
+            ).save(temp_datablob_path)
 
             for subtype in _SUBTYPES:
                 # Create the directory for each subtype.
@@ -1328,27 +1319,41 @@ class _LoadDataBlob(DataBlob):
         shard_offset: Optional[int] = None,
         shard_quantity: int = 1,
     ) -> Union[DataBlob, DataFrameDataBlob]:
-        metadata_path = os.path.join(path, _METADATA_PICKLE_FILENAME)
-        try:
-            with open(metadata_path, "rb") as fh:
-                metadata = scalarstop.pickle.load(fh)
-        except FileNotFoundError as exc:
-            raise DataBlobNotFound(path) from exc
-        name = metadata["name"]
-        group_name = metadata["group_name"]
-        save_load_version = metadata.get("save_load_version", 1)
-        total_num_shards = metadata.get("num_shards", 1)
-        hyperparams = metadata["hyperparams"]
+        metadata = DataBlobMetadata.load(path)
         return cls(
             path=path,
-            name=name,
-            group_name=group_name,
-            hyperparams=hyperparams,
-            total_num_shards=total_num_shards,
+            name=metadata.name,
+            group_name=metadata.group_name,
+            hyperparams=metadata.hyperparams,
+            total_num_shards=metadata.num_shards,
+            save_load_version=metadata.save_load_version,
             shard_offset=shard_offset,
             shard_quantity=shard_quantity,
-            save_load_version=save_load_version,
         )
+
+    @property
+    def total_num_shards(self) -> int:
+        """
+        The total number of shards for this :py:class:`DataBlob` that were
+        saved to the filesystem.
+        """
+        return self._total_num_shards
+
+    @property
+    def shard_offset(self) -> Optional[int]:
+        """
+        The start offset for the range of shards that this :py:class:`DataBlob`
+        is loading from the filesystem.
+        """
+        return self._shard_offset
+
+    @property
+    def shard_quantity(self) -> int:
+        """
+        The number of shards that this :py:class:`DataBlob` is loading
+        from the filesystem.
+        """
+        return self._shard_quantity
 
     def _load_tfdata(self, subtype: str) -> tf.data.Dataset:
         """Load one of the :py:class:`tf.data.Dataset` s that we have saved."""
