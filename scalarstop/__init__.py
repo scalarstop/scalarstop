@@ -6,6 +6,7 @@ from scalarstop import (
     model,
     model_template,
     pickle,
+    tf_config,
     train_store,
 )
 
@@ -25,3 +26,4 @@ from scalarstop.hyperparams import HyperparamsType  # isort:skip
 from scalarstop.hyperparams import AppendHyperparamsType  # isort:skip
 from scalarstop.hyperparams import NestedHyperparamsType  # isort:skip
 from scalarstop.hyperparams import enforce_dict  # isort:skip
+from scalarstop.tf_config import TFConfig  # isort:skip
