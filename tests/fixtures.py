@@ -50,6 +50,13 @@ class MyDataBlob(sp.DataBlob):
         return self._tfdata()
 
 
+class MyDataBlobRepeating(MyDataBlob):
+    """An infinitely-repeating example DataBlob."""
+
+    def _tfdata(self):
+        return super()._tfdata().repeat()
+
+
 class MyDataBlob2(MyDataBlob):
     """Another DataBlob to test different group names."""
 

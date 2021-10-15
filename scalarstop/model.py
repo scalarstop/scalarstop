@@ -448,6 +448,8 @@ class KerasModel(Model):
         train_store: Optional[TrainStore] = None,
         tensorboard_directory: Optional[str] = None,
         profile_batch: Union[int, Tuple[int, int]] = 0,
+        steps_per_epoch: Optional[int] = None,
+        validation_steps_per_epoch: Optional[int] = None,
         callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
         **kwargs,
     ) -> Mapping[str, Sequence[float]]:
@@ -488,6 +490,26 @@ class KerasModel(Model):
                 to profile. This is only valid when
                 a valid filesystem path is given as
                 ``tensorboard_directory``.
+
+            steps_per_epoch: The total number of steps (batches of samples)
+                before declaring one training epoch as "finished" and starting
+                the next epoch. When ``steps_per_epoch`` is ``None``,
+                the epoch will run until the input
+                :py:attr:`DataBlob.training` is exhausted. When passing
+                an infinitely repeating dataset, you must specify
+                ``steps_per_epoch``. If ``steps_per_epoch = -1``, the
+                training will run indefinitely with an infinitely
+                repeating dataset.
+
+            validation_steps_per_epoch: The total number of steps
+                (batches of samples) before declaring one validation
+                epoch as "finished" and starting the next epoch.
+                If ``validation_steps_per_epoch`` is specified
+                and only part of :py:class:`DataBlob.validation`
+                is consumed, the evaluation of :py:class:`DataBlob.validation`
+                will start from the beginning of :py:class:`DataBlob.validation`
+                at every epoch. This ensures that the same validation
+                samples are used every time.
 
             callbacks: A list of Keras callbacks to use while training.
         """
@@ -559,6 +581,8 @@ class KerasModel(Model):
                 callbacks=callbacks,
                 initial_epoch=self.current_epoch,
                 epochs=final_epoch,
+                steps_per_epoch=steps_per_epoch,
+                validation_steps=validation_steps_per_epoch,
             )
         return self.history
 

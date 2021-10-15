@@ -16,7 +16,12 @@ from tests.assertions import (
     assert_model_after_fit,
     assert_spkeras_models_are_equal,
 )
-from tests.fixtures import MyDataBlob, MyModelTemplate, requires_sqlite_json
+from tests.fixtures import (
+    MyDataBlob,
+    MyDataBlobRepeating,
+    MyModelTemplate,
+    requires_sqlite_json,
+)
 
 
 def load_tests(loader, tests, ignore):  # pylint: disable=unused-argument
@@ -433,6 +438,38 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
             assert os.path.exists(
                 os.path.join(model_tb_dir, "train", "plugins", "profile")
             )
+
+    def test_fit_with_steps_per_epoch(self):
+        """Test that we can pass ``steps_per_epoch`` when fitting models."""
+        datablob = MyDataBlobRepeating(hyperparams=dict(rows=10, cols=5)).batch(2)
+        num_epochs = 3
+        for steps_per_epoch in [1, 2, 3, 4, 5]:
+            with self.subTest(steps_per_epoch=steps_per_epoch):
+                model = sp.KerasModel(
+                    datablob=datablob,
+                    model_template=self.model_template,
+                )
+                last_batch = 0
+
+                def on_batch_end(batch, logs):  # pylint: disable=unused-argument
+                    nonlocal last_batch
+                    last_batch += 1
+
+                fit_kwargs = dict(
+                    final_epoch=num_epochs,
+                    verbose=0,
+                    callbacks=[
+                        tf.keras.callbacks.LambdaCallback(
+                            on_batch_end=on_batch_end,
+                        )
+                    ],
+                )
+                model.fit(
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=1,
+                    **fit_kwargs,
+                )
+                self.assertEqual(last_batch, num_epochs * steps_per_epoch)
 
     @requires_sqlite_json
     def test_fit_with_train_store(self):
