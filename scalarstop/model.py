@@ -391,7 +391,16 @@ class KerasModel(Model):
             self._model.input_shape
         except AttributeError:
             x_spec, _ = self._datablob.training.element_spec
-            self._model.build(input_shape=x_spec.shape)
+            try:
+                x_spec_shape = x_spec.shape
+            except AttributeError:
+                _LOGGER.warning(
+                    "sp.KerasModel could not automatically determine "
+                    "input shape and has not called build() on the "
+                    "underlying Keras model object."
+                )
+            else:
+                self._model.build(input_shape=x_spec_shape)
 
     def __repr__(self) -> str:
         if self.current_epoch == 1:
