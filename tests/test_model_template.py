@@ -17,7 +17,7 @@ class MyModelTemplate(sp.ModelTemplate):
     """Our example model template for testing."""
 
     @sp.dataclass
-    class Hyperparams:
+    class Hyperparams(sp.HyperparamsType):
         """HYperparams for MyModelTemplate."""
 
         a: int

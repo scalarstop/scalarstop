@@ -145,7 +145,7 @@ from log_with_context import Logger
 
 from scalarstop._filesystem import rmtree
 from scalarstop._keras_callbacks import BatchLoggingCallback, EpochCallback
-from scalarstop.datablob import DataBlob
+from scalarstop.datablob import DataBlob, DistributedDataBlob
 from scalarstop.exceptions import IsNotImplemented, ModelNotFoundError
 from scalarstop.model_template import ModelTemplate
 from scalarstop.train_store import TrainStore
@@ -163,16 +163,21 @@ class Model:
 
     @classmethod
     def from_filesystem(
-        cls, *, datablob: DataBlob, model_template: ModelTemplate, models_directory: str
+        cls,
+        *,
+        datablob: Union[DataBlob, DistributedDataBlob],
+        model_template: ModelTemplate,
+        models_directory: str,
     ) -> "Model":
         """
         Load an already-trained model from the filesystem.
 
         Args:
-            datablob: The :py:class:`~scalarstop.models.DataBlob`
+            datablob: The :py:class:`~scalarstop.datablob.DataBlob`
+                or :py:class:`~scalarstop.datablob.DistributedDataBlob`
                 used to train the model that we are looking for.
 
-            model_template: The :py:class:`~scalarstop.ModelTemplate`
+            model_template: The :py:class:`~scalarstop.model_template.ModelTemplate`
                 used to create the model that we are looking for.
 
             models_directory: The directory where you store all of your
@@ -193,17 +198,22 @@ class Model:
 
     @classmethod
     def from_filesystem_or_new(
-        cls, *, datablob: DataBlob, model_template: ModelTemplate, models_directory: str
+        cls,
+        *,
+        datablob: Union[DataBlob, DistributedDataBlob],
+        model_template: ModelTemplate,
+        models_directory: str,
     ) -> "Model":
         """
         Load a saved model from the filesystem. If we can't find one, create a new one with
-        the supplied :py:class:`~scalarstop.ModelTemplate`.
+        the supplied :py:class:`~scalarstop.model_template.ModelTemplate`.
 
         Args:
-            datablob: The :py:class:`~scalarstop.models.DataBlob`
+            datablob: The :py:class:`~scalarstop.datablob.DataBlob`
+                or :py:class:`~scalarstop.datablob.DistributedDataBlob`
                 that we will use to train the model.
 
-            model_template: The :py:class:`~scalarstop.ModelTemplate`
+            model_template: The :py:class:`~scalarstop.model_template.ModelTemplate`
                 that we will use to create the model.
 
             models_directory: The directory where you store all of your
@@ -225,7 +235,7 @@ class Model:
     def __init__(
         self,
         *,
-        datablob: DataBlob,
+        datablob: Union[DataBlob, DistributedDataBlob],
         model_template: ModelTemplate,
         model: Optional[Any] = None,
     ):
@@ -244,8 +254,8 @@ class Model:
     def calculate_name(*, model_template_name: str, datablob_name: str) -> str:
         """
         Create a model name from a
-        :py:class:`~scalarstop.ModelTemplate`
-        name and a :py:class:`~scalarstop.DataBlob` name.
+        :py:class:`~scalarstop.model_template.ModelTemplate`
+        name and a :py:class:`~scalarstop.datablob.DataBlob` name.
         """
         return f"mt_{model_template_name}__d_{datablob_name}"
 
@@ -256,16 +266,17 @@ class Model:
 
         If you intend on overriding this method, you should make sure
         that two :py:class:`Model` s trained on the same
-        :py:class:`~scalarstop.DataBlob` and
-        :py:class:`~scalarstop.ModelTemplate` have the
+        :py:class:`~scalarstop.datablob.DataBlob` and
+        :py:class:`~scalarstop.model_template.ModelTemplate` have the
         same name.
         """
         return self._name
 
     @property
-    def datablob(self) -> DataBlob:
+    def datablob(self) -> Union[DataBlob, DistributedDataBlob]:
         """
-        Returns the :py:class:`~scalarstop.DataBlob`
+        Returns the :py:class:`~scalarstop.datablob.DataBlob` or the
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`
         used to create this model.
         """
         return self._datablob
@@ -273,7 +284,7 @@ class Model:
     @property
     def model_template(self) -> ModelTemplate:
         """
-        Returns the :py:class:`~scalarstop.ModelTemplate`
+        Returns the :py:class:`~scalarstop.model_template.ModelTemplate`
         used to create this model.
         """
         return self._model_template
@@ -315,7 +326,7 @@ class Model:
     def fit(self, *, final_epoch: int, **kwargs) -> Mapping[str, Sequence[float]]:
         """
         Fits the given model to the given
-        :py:class:`~scalarstop.DataBlob`.
+        :py:class:`~scalarstop.datablob.DataBlob`.
         """
         raise IsNotImplemented(f"{self.__class__.__name__}.fit()")
 
@@ -338,7 +349,7 @@ class KerasModel(Model):
     def from_filesystem(
         cls,
         *,
-        datablob: DataBlob,
+        datablob: Union[DataBlob, DistributedDataBlob],
         model_template: ModelTemplate,
         models_directory: str,
     ) -> "KerasModel":
@@ -376,7 +387,7 @@ class KerasModel(Model):
     def __init__(
         self,
         *,
-        datablob: DataBlob,
+        datablob: Union[DataBlob, DistributedDataBlob],
         model_template: ModelTemplate,
         model: Optional[Any] = None,
         history: Optional[_KERAS_HISTORY_TYPE] = None,
@@ -463,7 +474,7 @@ class KerasModel(Model):
         **kwargs,
     ) -> Mapping[str, Sequence[float]]:
         """
-        Fit the Keras model to the :py:class:`~scalarstop.DataBlob`
+        Fit the Keras model to the :py:class:`~scalarstop.datablob.DataBlob`
         that this model was created for.
 
         Args:
@@ -488,8 +499,8 @@ class KerasModel(Model):
 
             train_store: A :py:class:`~scalarstop.TrainStore`
                 instance, which is a client that persists metadata about
-                :py:class:`~scalarstop.DataBlob` s,
-                :py:class:`~scalarstop.ModelTemplate` s,
+                :py:class:`~scalarstop.datablob.DataBlob` s,
+                :py:class:`~scalarstop.model_template.ModelTemplate` s,
                 and :py:class:`~scalarstop.model.Model` s.
 
             tensorboard_directory: A directory on the filesystem to write
@@ -630,14 +641,14 @@ class KerasModel(Model):
         callbacks: Optional[Sequence[tf.keras.callbacks.Callback]] = None,
     ) -> Sequence[float]:
         """
-        Evaluate this model on the :py:class:`~scalarstop.DataBlob`'s test set.
+        Evaluate this model on the :py:class:`~scalarstop.datablob.DataBlob`'s test set.
 
         Optionally, you can provide another :py:class:`tf.data.Dataset` via the
         ``dataset`` parameter.
 
         Args:
             dataset: Another :py:class:`tf.data.Dataset` to evalaute instead of
-                the test set of the provided :py:class:`~scalarstop.DataBlob`.
+                the test set of the provided :py:class:`~scalarstop.datablob.DataBlob`.
 
             verbose: Specifiy verbosity for evaluating this model.
 

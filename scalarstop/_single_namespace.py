@@ -1,7 +1,12 @@
 """Common utilities for classes that manage hyperparameters."""
-from typing import Any, Mapping, Optional, Type, Union
+from typing import Any, Dict, Mapping, Optional, Type, Union
 
-from scalarstop.hyperparams import HyperparamsType, hash_hyperparams, init_hyperparams
+from scalarstop.hyperparams import (
+    HyperparamsType,
+    flatten_hyperparams,
+    hash_hyperparams,
+    init_hyperparams,
+)
 
 
 class SingleNamespace:
@@ -14,7 +19,6 @@ class SingleNamespace:
     """
 
     Hyperparams: Type[HyperparamsType] = HyperparamsType
-    hyperparams: HyperparamsType
 
     _group_name: str = ""
     _name: str = ""
@@ -29,11 +33,12 @@ class SingleNamespace:
         Args:
             hyperparams: The hyperparameters to initialize this class with.
         """
-        self.hyperparams = init_hyperparams(
+        self._hyperparams = init_hyperparams(
             class_name=self.__class__.__name__,
             hyperparams=hyperparams,
             hyperparams_class=self.Hyperparams,
         )
+        self._hyperparams_flat = flatten_hyperparams(self._hyperparams)
 
     @classmethod
     def calculate_name(
@@ -65,3 +70,30 @@ class SingleNamespace:
         if not self._name:
             self._name = self.calculate_name(hyperparams=self.hyperparams)
         return self._name
+
+    @property
+    def hyperparams(self) -> HyperparamsType:
+        """Returns a :py:class:`HyperparamsType` instance containing hyperparameters."""
+        return self._hyperparams
+
+    @property
+    def hyperparams_flat(self) -> Dict[str, Any]:
+        """
+        Returns a Python dictionary of "flattened" hyperparameters.
+
+        :py:class:`AppendDataBlob` objects modify a
+        "parent" :py:class:`DataBlob`, nesting the parent's
+        `Hyperparams` within the :py:class:`AppendDataBlob` 's
+        own `Hyperparams`.
+
+        This makes it hard to look up a given hyperparams
+        key. A value at ``parent_datablob.hyperparams.a`` is
+        stored at ``child_datablob.hyperparams.parent.hyperparams.a``.
+
+        This ``hyperparams_flat`` property provides all
+        nested hyperparams keys as a flat Python dictionary.
+        If a child :py:class:`AppendDataBlob` has a hyperparameter
+        key that that conflicts with the parent, the child's value
+        will overwrite the parent's value.
+        """
+        return self._hyperparams_flat

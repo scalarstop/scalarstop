@@ -15,6 +15,7 @@ from tests.fixtures import (
     MyDataBlob2,
     MyModelTemplate,
     MyModelTemplate2,
+    MyShardableDistributedDataBlob,
     requires_external_database,
     requires_sqlite_json,
 )
@@ -37,10 +38,22 @@ class TrainStoreUnits:  # pylint: disable=no-member
         )
         self.models_directory = self._models_directory_context.name
 
-        self.datablob = MyDataBlob(hyperparams=dict(rows=10, cols=5)).batch(2)
+        self.datablob_hyperparams = dict(rows=10, cols=5)
+        self.datablob_batch_size = 2
+        self.datablob = MyDataBlob(hyperparams=self.datablob_hyperparams).batch(
+            self.datablob_batch_size
+        )
+        self.distributed_datablob = MyShardableDistributedDataBlob(
+            hyperparams=self.datablob_hyperparams,
+            per_replica_batch_size=self.datablob_batch_size,
+        )
         self.model_template = MyModelTemplate(hyperparams=dict(layer_1_units=2))
         self.model = sp.KerasModel(
             datablob=self.datablob,
+            model_template=self.model_template,
+        )
+        self.distributed_datablob_model = sp.KerasModel(
+            datablob=self.distributed_datablob,
             model_template=self.model_template,
         )
 
@@ -49,7 +62,10 @@ class TrainStoreUnits:  # pylint: disable=no-member
         self._models_directory_context.cleanup()
 
     def test_insert_datablob(self):
-        """Test :py:meth:`~scalarstop.TrainStore.insert_datablob`."""
+        """
+        Test :py:meth:`~scalarstop.TrainStore.insert_datablob` with
+        :py:class:`sp.datablob.DataBlob` instance.
+        """
         self.train_store.insert_datablob(self.datablob)
         self.assertEqual(len(self.train_store.list_datablobs()), 1)
 
@@ -79,6 +95,46 @@ class TrainStoreUnits:  # pylint: disable=no-member
         )
         self.assertEqual(df["name"].tolist(), ["MyDataBlob-mftoseayyazof6cibziqosm"])
         self.assertEqual(df["group_name"].tolist(), ["MyDataBlob"])
+        self.assertEqual(df["hyperparams"].tolist(), [dict(rows=10, cols=5)])
+
+    def test_insert_distributed_datablob(self):
+        """
+        Test :py:meth:`~scalarstop.TrainStore.insert_datablob` with a
+        :py:class:`sp.datablob.DistributedDataBlob` instance.
+        """
+        self.train_store.insert_datablob(self.distributed_datablob)
+        self.assertEqual(len(self.train_store.list_datablobs()), 1)
+
+        # Assert that we raise an exception when inserting the same DataBlob.
+        with self.assertRaises(IntegrityError):
+            self.train_store.insert_datablob(self.distributed_datablob)
+        with self.assertRaises(IntegrityError):
+            self.train_store.insert_datablob_by_str(
+                name=self.distributed_datablob.name, group_name="", hyperparams=None
+            )
+
+        # Assert that we can suppress that exception.
+        self.train_store.insert_datablob(
+            self.distributed_datablob, ignore_existing=True
+        )
+
+        # Examine what we just added.
+        df = self.train_store.list_datablobs()
+        self.assertEqual(len(df), 1)
+        self.assertEqual(
+            sorted(df.keys()),
+            [
+                "group_name",
+                "hyperparams",
+                "hyperparams_flat",
+                "last_modified",
+                "name",
+            ],
+        )
+        self.assertEqual(
+            df["name"].tolist(), ["MyShardableDataBlob-mftoseayyazof6cibziqosm"]
+        )
+        self.assertEqual(df["group_name"].tolist(), ["MyShardableDataBlob"])
         self.assertEqual(df["hyperparams"].tolist(), [dict(rows=10, cols=5)])
 
     def test_insert_model_template(self):
@@ -178,6 +234,72 @@ class TrainStoreUnits:  # pylint: disable=no-member
             df["model_name"].tolist(),
             [
                 "mt_MyModelTemplate-29utnha73paz6fvwivrs5fn6__d_MyDataBlob-mftoseayyazof6cibziqosm"
+            ],
+        )
+
+    def test_insert_model_from_distributed_datablob(self):
+        """
+        Test :py:meth:`~scalarstop.TrainStore.insert_model` with a
+        :py:class:`~scalarstop.model.KerasModel`
+        created from a :py:class:`~scalarstop.datablob.DistributedDataBlob.
+        """
+        self.train_store.insert_datablob(self.distributed_datablob)
+        self.train_store.insert_model_template(self.model_template)
+        self.train_store.insert_model(self.distributed_datablob_model)
+        self.assertEqual(len(self.train_store.list_models()), 1)
+
+        # Assert that we raise an exception when inserting another with the same name.
+        with self.assertRaises(IntegrityError):
+            self.train_store.insert_model(self.distributed_datablob_model)
+        with self.assertRaises(IntegrityError):
+            self.train_store.insert_model_by_str(
+                name=self.distributed_datablob_model.name,
+                model_class_name="",
+                datablob_name="",
+                model_template_name="",
+            )
+
+        # Assert that we can suppress that exception.
+        self.train_store.insert_model(
+            self.distributed_datablob_model, ignore_existing=True
+        )
+
+        # Examine what we just added.
+        df = self.train_store.list_models()
+        self.assertEqual(len(df), 1)
+        self.assertEqual(
+            sorted(df.keys()),
+            [
+                "datablob_group_name",
+                "datablob_name",
+                "dbh__cols",
+                "dbh__rows",
+                "model_class_name",
+                "model_last_modified",
+                "model_name",
+                "model_template_group_name",
+                "model_template_name",
+                "mth__layer_1_units",
+                "mth__loss",
+                "mth__optimizer",
+            ],
+        )
+        self.assertEqual(df["model_class_name"].tolist(), ["KerasModel"])
+        self.assertEqual(
+            df["datablob_name"].tolist(),
+            ["MyShardableDataBlob-mftoseayyazof6cibziqosm"],
+        )
+        self.assertEqual(df["datablob_group_name"].tolist(), ["MyShardableDataBlob"])
+        self.assertEqual(
+            df["model_template_name"].tolist(),
+            ["MyModelTemplate-29utnha73paz6fvwivrs5fn6"],
+        )
+        self.assertEqual(df["model_template_group_name"].tolist(), ["MyModelTemplate"])
+        self.assertEqual(
+            df["model_name"].tolist(),
+            [
+                "mt_MyModelTemplate-29utnha73paz6fvwivrs5fn6__"
+                "d_MyShardableDataBlob-mftoseayyazof6cibziqosm"
             ],
         )
 
@@ -394,6 +516,61 @@ class TrainStoreUnits:  # pylint: disable=no-member
         # Now we use the bulk insert to add all of the epochs that we forgot to log.
         self.train_store.bulk_insert_model_epochs(self.model)
         model_epochs_3 = self.train_store.list_model_epochs(self.model.name)
+        self.assertEqual(len(model_epochs_3), 9)
+        self.assertEqual(
+            model_epochs_3["epoch_num"].tolist(), [0, 1, 2, 3, 4, 5, 6, 7, 8]
+        )
+
+    def test_bulk_insert_model_epochs_from_distributed_datablob(self):
+        """
+        Test :py:meth:`~scalarstop.TrainStore.bulk_insert_model_epochs`
+        with a :py:class:`~scalarstop.model.KerasModel`
+        created from a :py:class:`~scalarstop.datablob.DistributedDataBlob.
+        """
+        # Set everything up.
+        self.train_store.insert_datablob(self.distributed_datablob)
+        self.train_store.insert_model_template(self.model_template)
+        self.train_store.insert_model(self.distributed_datablob_model)
+
+        # We pass these keyword arguments to every KerasModel.fit()
+        fit_kwargs = dict(
+            verbose=0,
+            steps_per_epoch=self.distributed_datablob.hyperparams.rows
+            // self.datablob_batch_size,
+            validation_steps_per_epoch=self.distributed_datablob.hyperparams.rows
+            // self.datablob_batch_size,
+        )
+
+        # Train 3 epochs and do not log them into the TrainStore.
+        self.distributed_datablob_model.fit(final_epoch=3, **fit_kwargs)
+
+        # Train 3 more epochs and DO log these into the TrainStore.
+        self.distributed_datablob_model.fit(
+            final_epoch=6, train_store=self.train_store, **fit_kwargs
+        )
+
+        # Assert that the TrainStore only has the epochs that we added to it.
+        model_epochs_1 = self.train_store.list_model_epochs(
+            self.distributed_datablob_model.name
+        )
+        self.assertEqual(len(model_epochs_1), 3)
+        self.assertEqual(model_epochs_1["epoch_num"].tolist(), [4, 5, 6])
+
+        # Train 3 more epochs without including them in the TrainStore.
+        self.distributed_datablob_model.fit(final_epoch=9, **fit_kwargs)
+
+        # Assert that the TrainStore only has the epochs that we added to it.
+        model_epochs_2 = self.train_store.list_model_epochs(
+            self.distributed_datablob_model.name
+        )
+        self.assertEqual(len(model_epochs_2), 3)
+        self.assertEqual(model_epochs_2["epoch_num"].tolist(), [4, 5, 6])
+
+        # Now we use the bulk insert to add all of the epochs that we forgot to log.
+        self.train_store.bulk_insert_model_epochs(self.distributed_datablob_model)
+        model_epochs_3 = self.train_store.list_model_epochs(
+            self.distributed_datablob_model.name
+        )
         self.assertEqual(len(model_epochs_3), 9)
         self.assertEqual(
             model_epochs_3["epoch_num"].tolist(), [0, 1, 2, 3, 4, 5, 6, 7, 8]
