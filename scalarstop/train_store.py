@@ -62,6 +62,7 @@ from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
 from scalarstop._datetime import utcnow
+from scalarstop.datablob import DataBlobBase
 from scalarstop.exceptions import SQLite_JSON_ModeDisabled
 from scalarstop.hyperparams import enforce_dict, flatten_hyperparams
 
@@ -514,10 +515,16 @@ class TrainStore:
         with self.connection.begin():
             return pd.read_sql_query(sql=stmt, con=self.connection)
 
-    def insert_datablob(self, datablob, *, ignore_existing: bool = False) -> None:
+    def insert_datablob(
+        self, datablob: DataBlobBase, *, ignore_existing: bool = False
+    ) -> None:
         """
         Logs the :py:class:`~scalarstop.datablob.DataBlob` name, group name,
         and hyperparams to the :py:class:`TrainStore`.
+
+        This also supports inserting other subclasses of
+        :py:class:`~scalarstop.datablob.DataBlobBase`, such as
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`.
 
         Args:
             datablob: A :py:class:`~scalarstop.datablob.DataBlob`

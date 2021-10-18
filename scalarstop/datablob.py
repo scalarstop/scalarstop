@@ -13,7 +13,7 @@ that makes it easy to keep track of many datasets at once.
 
 import errno
 import os
-from typing import Any, Dict, Mapping, Optional, Type, Union
+from typing import Any, Mapping, Optional, Type, Union
 
 import pandas as pd
 import tensorflow as tf
@@ -48,13 +48,60 @@ from scalarstop.hyperparams import (
     HyperparamsType,
     NestedHyperparamsType,
     enforce_dict,
-    flatten_hyperparams,
 )
 
 _LOGGER = Logger(__name__)
 
 
-class DataBlob(SingleNamespace):
+class DataBlobBase(SingleNamespace):
+    """The abstract base class describing the properties common to all DataBlobs."""
+
+    def __init__(
+        self,
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        **kwargs,
+    ):
+        super().__init__(hyperparams=hyperparams, **kwargs)
+        self._training: Any = None
+        self._validation: Any = None
+        self._test: Any = None
+
+    def set_training(self) -> Any:
+        """Creates and returns a new object representing the training set."""
+        raise IsNotImplemented("DataBlobBase.set_training()")
+
+    @property
+    def training(self) -> Any:
+        """An object representing the training set."""
+        if self._training is None:
+            self._training = self.set_training()
+        return self._training
+
+    def set_validation(self) -> Any:
+        """Creates and returns a new object representing the validation set."""
+        raise IsNotImplemented("DataBlobBase.set_validation()")
+
+    @property
+    def validation(self) -> Any:
+        """An object representing the validation set."""
+        if self._validation is None:
+            self._validation = self.set_validation()
+        return self._validation
+
+    def set_test(self) -> Any:
+        """Creates and returns a new object representing the test set."""
+        raise IsNotImplemented("DataBlobBase.set_test()")
+
+    @property
+    def test(self) -> Any:
+        """An object representing the test set."""
+        if self._test is None:
+            self._test = self.set_test()
+        return self._test
+
+
+class DataBlob(DataBlobBase):
     """
     Subclass this to group your training, validation, and test sets for training machine learning models.
 
@@ -198,31 +245,6 @@ class DataBlob(SingleNamespace):
     _training: Optional[tf.data.Dataset] = None
     _validation: Optional[tf.data.Dataset] = None
     _test: Optional[tf.data.Dataset] = None
-    _hyperparams_flat: Optional[Dict[str, Any]] = None
-
-    @property
-    def hyperparams_flat(self) -> Dict[str, Any]:
-        """
-        Returns a Python dictionary of "flattened" hyperparameters.
-
-        :py:class:`AppendDataBlob` objects modify a
-        "parent" :py:class:`DataBlob`, nesting the parent's
-        `Hyperparams` within the :py:class:`AppendDataBlob` 's
-        own `Hyperparams`.
-
-        This makes it hard to look up a given hyperparams
-        key. A value at ``parent_datablob.hyperparams.a`` is
-        stored at ``child_datablob.hyperparams.parent.hyperparams.a``.
-
-        This ``hyperparams_flat`` property provides all
-        nested hyperparams keys as a flat Python dictionary.
-        If a child :py:class:`AppendDataBlob` has a hyperparameter
-        key that that conflicts with the parent, the child's value
-        will overwrite the parent's value.
-        """
-        if self._hyperparams_flat is None:
-            self._hyperparams_flat = flatten_hyperparams(self.hyperparams)
-        return self._hyperparams_flat
 
     @classmethod
     def from_filesystem(
@@ -234,7 +256,7 @@ class DataBlob(SingleNamespace):
         shard_quantity: int = 1,
     ):
         """
-        Load a :py:class:`DataBlob` from the filesystem, calculating the
+        Loads a :py:class:`DataBlob` from the filesystem, calculating the
         filename from the hyperparameters.
 
         Args:
@@ -248,6 +270,52 @@ class DataBlob(SingleNamespace):
         path = os.path.join(datablobs_directory, name)
         return cls.from_exact_path(
             path, shard_offset=shard_offset, shard_quantity=shard_quantity
+        )
+
+    @classmethod
+    def from_filesystem_distributed(
+        cls,
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        datablobs_directory: str,
+        repeat: Union[bool, int, None] = True,
+        per_replica_batch_size: Optional[int] = None,
+        tf_distribute_strategy: Optional[tf.distribute.Strategy] = None,
+    ) -> "DistributedDataBlob":
+        """
+        Loads a sharded :py:class:`DataBlob` from the filesystem,
+        automatically splitting the shards amongs the input workers
+        of a :py:class:`tf.distribute.Strategy`.
+
+        Args:
+            hyperparams: The hyperparameters of the model that we want to load.
+
+            datablobs_directory: The parent directory of all of your saved
+                :py:class:`DataBlob` s. The exact filename is calculated
+                from the class name and hyperparams.
+
+            repeat: Repeats the :py:class:`DataBlob` after loading it.
+                Set to ``True`` to enable infinite repeating.
+                Set to a positive integer ``n`` to repeat the
+                :py:class:`DataBlob` ``n`` times.
+                Set to ``False`` to disable repeating.
+
+            per_replica_batch_size: The batch size for each individual
+                :py:mod:`tf.distribute` replica. This is the global
+                batch size divided by :py:attr:`tf.distribute.Strategy.num_replicas_in_sync`.
+
+            tf_distribute_strategy: The :py:class:`tf.distribute.Strategy`
+                subclass to use. Optionally, this method will detect if it
+                is already inside a `:py:meth:`tf.distribute.Strategy.scope`
+                context manager.
+        """
+        return _DistributedDataBlobFromFilesystem(
+            hyperparams=hyperparams,
+            datablobs_directory=datablobs_directory,
+            datablob_class=cls,
+            repeat=repeat,
+            per_replica_batch_size=per_replica_batch_size,
+            tf_distribute_strategy=tf_distribute_strategy,
         )
 
     @classmethod
@@ -313,6 +381,43 @@ class DataBlob(SingleNamespace):
         """Load a :py:class:`DataBlob` from a directory on the filesystem."""
         return _LoadDataBlob.from_exact_path(
             path=path, shard_offset=shard_offset, shard_quantity=shard_quantity
+        )
+
+    @classmethod
+    def from_exact_path_distributed(
+        cls,
+        *,
+        path: str,
+        repeat: Union[bool, int, None] = True,
+        per_replica_batch_size: Optional[int] = None,
+        tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
+    ) -> "DistributedDataBlob":
+        """
+        Args:
+            path: The exact location of the saved :py:class:`DataBlob`
+                on the filesystem.
+
+            repeat: Repeats the :py:class:`DataBlob` after loading it.
+                Set to ``True`` to enable infinite repeating.
+                Set to a positive integer ``n`` to repeat the
+                :py:class:`DataBlob` ``n`` times.
+                Set to ``False`` to disable repeating.
+
+            per_replica_batch_size: The batch size for each individual
+                :py:mod:`tf.distribute` replica. This is the global
+                batch size divided by :py:attr:`tf.distribute.Strategy.num_replicas_in_sync`.
+
+            tf_distribute_strategy: The :py:class:`tf.distribute.Strategy`
+                subclass to use. Optionally, this method will detect if it
+                is already inside a `:py:meth:`tf.distribute.Strategy.scope`
+                context manager.
+        """
+        return _DistributedDataBlobFromExactPath(
+            path=path,
+            datablob_class=cls,
+            repeat=repeat,
+            per_replica_batch_size=per_replica_batch_size,
+            tf_distribute_strategy=tf_distribute_strategy,
         )
 
     @staticmethod
@@ -884,7 +989,7 @@ class _WrapDataBlob(DataBlob):
     ):  # pylint: disable=super-init-not-called
         self._wraps = wraps
         self.Hyperparams = self._wraps.Hyperparams
-        self.hyperparams = self._wraps.hyperparams
+        self._hyperparams = self._wraps.hyperparams
         self._name = wraps.name
         self._group_name = wraps.group_name
         self._enable_training = training
@@ -1378,6 +1483,31 @@ class _RepeatDataBlob(_WrapDataBlob):
         return tfdata.repeat(self._count)
 
 
+class _ShardDataBlob(_WrapDataBlob):
+    """
+    Shards this :py:class:`DataBlob`.
+    """
+
+    def __init__(
+        self,
+        *,
+        wraps: Any,
+        num_shards: int,
+        shard_index: int,
+        training: bool,
+        validation: bool,
+        test: bool,
+    ):
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
+        self._num_shards = num_shards
+        self._shard_index = shard_index
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        return tfdata.shard(self._num_shards, self._shard_index)
+
+
 class _WithOptionsDataBlob(_WrapDataBlob):
     """
     Apply a :py:class:`tf.data.Options` object to this :py:class:`DataBlob`.
@@ -1520,3 +1650,312 @@ class _LoadDataFrameDataBlob(_LoadDataBlob, DataFrameDataBlob):
 
     def set_test_dataframe(self) -> pd.DataFrame:
         return self._set_subtype_dataframe(_SUBTYPE_TEST)
+
+
+class DistributedDataBlob(DataBlobBase):
+    """
+    Wraps a :py:class:`DataBlob` to create a TensorFlow :py:class:`tf.distribute.DistributedDataset`.
+
+    A :py:class:`DataBlob` contains three TensorFlow :py:class:`tf.data.Dataset`
+    pipelines, representing a training, validation, and test set.
+    The :py:class:`DistributedDataBlob`  wraps the creation of a :py:class:`DataBlob`
+    to turn each :py:class:`tf.data.Dataset` into a :py:class:`tf.distribute.DistributedDataset`
+    which is used to distribute a dataset across multiple workers according
+    to a :py:class:`tf.distribute.Strategy`.
+
+    If you have saved a :py:class:`DataBlob` to the filesystem with
+    :py:meth:`DataBlob.save`, then you can automatically load the :py:class:`DataBlob`
+    from the filesystem as a :py:class:`DistributedDataBlob` using the
+    classmethod :py:meth:`DataBlob.from_filesystem_distributed` or
+    :py:meth:`DataBlob.from_exact_path_distributed`.
+
+    For more fine-grained control, you can subclass :py:class:`DistributedDataBlob`
+    and override :py:meth:`DistributedDataBlob.new_sharded_datablob` with
+    your own :py:class:`DataBlob` creation and sharding logic. Optionally,
+    you can also subclass :py:meth:`DistributedDataBlob.transform_datablob`
+    to change how :py:class:`DistributedDataBlob` handles repeating and batching.
+    Finally, you can also subclass :py:meth:`DistributedDataBlob.postprocess_tfdata`
+    to make changes to individual :py:class:`tf.data.Dataset` instances rather
+    than the :py:class:`DataBlob` as a whole.
+    """  # pylint: disable=line-too-long
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        group_name: str,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        hyperparams_class: Type[HyperparamsType],
+        repeat: Union[bool, int, None] = True,
+        per_replica_batch_size: Optional[int] = None,
+        tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
+    ):
+        """
+        Args:
+            name: The name of the wrapped :py:class:`DataBlob`.
+
+            group_name: The group name of the wrapped :py:class:`DataBlob`.
+
+            hyperparams: The hyperparameters of the wrapped :py:class:`DataBlob`.
+
+            hyperparams_class: The :py:class:`HyperparamsType` class that
+                ``hyperparams`` instances are created from.
+
+            repeat: Repeats the :py:class:`DataBlob` after loading it.
+                Set to ``True`` to enable infinite repeating.
+                Set to a positive integer ``n`` to repeat the
+                :py:class:`DataBlob` ``n`` times.
+                Set to ``False`` to disable repeating.
+
+            per_replica_batch_size: The batch size for each individual
+                :py:mod:`tf.distribute` replica. This is the global
+                batch size divided by :py:attr:`tf.distribute.Strategy.num_replicas_in_sync`.
+
+            tf_distribute_strategy: The :py:class:`tf.distribute.Strategy`
+                subclass to use. Optionally, this method will detect if it
+                is already inside a `:py:meth:`tf.distribute.Strategy.scope`
+                context manager.
+        """
+        self._name = name
+        self._group_name = group_name
+        self.Hyperparams = hyperparams_class
+        super().__init__(
+            hyperparams=hyperparams,
+        )
+        self._repeat = repeat
+        self._per_replica_batch_size = per_replica_batch_size
+        self._tf_distribute_strategy = (
+            tf_distribute_strategy or tf.distribute.get_strategy()
+        )
+        self._training: Optional[tf.data.Dataset] = None
+        self._validation: Optional[tf.data.Dataset] = None
+        self._test: Optional[tf.data.Dataset] = None
+
+    def __repr__(self) -> str:
+        return f"<sp.DistributedDataBlob {self.name}>"
+
+    def new_sharded_datablob(
+        self, ctx: tf.distribute.InputContext  # pylint: disable=unused-argument
+    ) -> DataBlob:
+        """
+        Subclass this method to return a sharded :py:class:`DataBlob`.
+
+        Args:
+            ctx: A :py:class:`tf.distribute.InputContext` instance.
+                The attribute :py:attr:`tf.distribute.InputContext.input_pipeline_id`
+                returns the current input pipeline.
+                The attribute :py:attr:`tf.distribute.InputContext.num_input_pipelines`
+                returns the total number of distributed input pipelines
+                in the current :py:class:`tf.distribute.Strategy`.
+
+        """
+        raise NotImplementedError(
+            "Subclass DistributedDataBlob.new_sharded_datablob() to return a sharded DataBlob."
+        )
+
+    def transform_datablob(  # pylint: disable=unused-argument
+        self,
+        datablob: DataBlob,
+        ctx: tf.distribute.InputContext,
+    ) -> DataBlob:
+        """
+        Transforms an already-initialized :py:class:`DataBlob` to add repeating and sharding logic.
+
+        Args:
+            datablob: The already-initialized :py:class:`DataBlob`.
+
+            ctx: A :py:class:`tf.distribute.InputContext` instance.
+                The attribute :py:attr:`tf.distribute.InputContext.input_pipeline_id`
+                returns the current input pipeline.
+                The attribute :py:attr:`tf.distribute.InputContext.num_input_pipelines`
+                returns the total number of distributed input pipelines
+                in the current :py:class:`tf.distribute.Strategy`.
+
+        Returns:
+            Returns a :py:class:`DataBlob` that has been modified by
+                repeating, batching, or another transformation.
+        """
+        if self._repeat is True:
+            datablob = datablob.repeat()
+        elif self._repeat is not False:
+            datablob = datablob.repeat(count=self._repeat)
+        if self._per_replica_batch_size is not None:
+            datablob = datablob.batch(
+                batch_size=self._per_replica_batch_size,
+            )
+        return datablob
+
+    def postprocess_tfdata(  # pylint: disable=unused-argument
+        self,
+        tfdata: tf.data.Dataset,
+        ctx: tf.distribute.InputContext,
+    ) -> tf.data.Dataset:
+        """
+        Performs additional :py:class:`tf.data.Dataset` transformations
+        before turning them into :py:class:`tf.distribute.DistributedDataset`
+        instances.
+
+        Currently, the implementation in :py:class:`DistributedDataBlob`
+        does nothing, but is avaiable for you to subclass and change.
+
+        Args:
+            tfdata: The input :py:class:`tf.data.Dataset` instance to transform.
+
+            ctx: A :py:class:`tf.distribute.InputContext` instance.
+                The attribute :py:attr:`tf.distribute.InputContext.input_pipeline_id`
+                returns the current input pipeline.
+                The attribute :py:attr:`tf.distribute.InputContext.num_input_pipelines`
+                returns the total number of distributed input pipelines
+                in the current :py:class:`tf.distribute.Strategy`.
+
+        Returns:
+            Returns a transformed :py:class:`tf.data.Dataset`.
+        """
+        return tfdata
+
+    def _get_distributed_tfdata(self, subtype: str) -> tf.distribute.DistributedDataset:
+        """
+        Returns a :py:class:`tf.distribute.DistributedDataset` for the
+        training, validation, or test set.
+
+        Args:
+            subtype: Either ``"training"``, ``"validation"``, or ``"test``.
+        """
+
+        def _inner(ctx: tf.distribute.InputContext):
+            datablob = self.new_sharded_datablob(ctx)
+            datablob = self.transform_datablob(datablob, ctx)
+            if subtype == _SUBTYPE_TRAINING:
+                tfdata = datablob.set_training()
+            elif subtype == _SUBTYPE_VALIDATION:
+                tfdata = datablob.set_validation()
+            elif subtype == _SUBTYPE_TEST:
+                tfdata = datablob.set_test()
+            else:
+                raise RuntimeError(f"Invalid {subtype=}.")
+            return self.postprocess_tfdata(ctx=ctx, tfdata=tfdata)
+
+        return self._tf_distribute_strategy.distribute_datasets_from_function(_inner)
+
+    @property
+    def tf_distribute_strategy(self) -> tf.distribute.Strategy:
+        """Returns the currently-active :py:class:`tf.distribute.Strategy`."""
+        return self._tf_distribute_strategy
+
+    def set_training(self) -> tf.distribute.DistributedDataset:
+        """Creates a new :py:class:`tf.distribute.DistributedDataset` for the training set."""
+        return self._get_distributed_tfdata(_SUBTYPE_TRAINING)
+
+    @property
+    def training(self) -> tf.distribute.DistributedDataset:
+        """A :py:class:`tf.distribute.DistributedDataset` instance for the training set."""
+        if self._training is None:
+            self._training = self.set_training()
+        return self._training
+
+    def set_validation(self) -> tf.distribute.DistributedDataset:
+        """Creates a new :py:class:`tf.distribute.DistributedDataset` for the validation set."""
+        return self._get_distributed_tfdata(_SUBTYPE_VALIDATION)
+
+    @property
+    def validation(self) -> tf.distribute.DistributedDataset:
+        """A :py:class:`tf.distribute.DistributedDataset` instance for the validation set."""
+        if self._validation is None:
+            self._validation = self.set_validation()
+        return self._validation
+
+    def set_test(self) -> tf.distribute.DistributedDataset:
+        """Creates a new :py:class:`tf.distribute.DistributedDataset` for the test set."""
+        return self._get_distributed_tfdata(_SUBTYPE_TEST)
+
+    @property
+    def test(self) -> tf.distribute.DistributedDataset:
+        """A :py:class:`tf.distribute.DistributedDataset` instance for the test set."""
+        if self._test is None:
+            self._test = self.set_test()
+        return self._test
+
+
+class _DistributedDataBlobFromFilesystem(DistributedDataBlob):
+    """Implements :py:meth:`DataBlob.from_filesystem_distributed`."""
+
+    def __init__(
+        self,
+        *,
+        hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
+        datablobs_directory: str,
+        datablob_class: Optional[Type[DataBlob]] = None,
+        repeat: Union[bool, int, None] = True,
+        per_replica_batch_size: Optional[int] = None,
+        tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
+    ):
+        if datablob_class is None:
+            self._datablob_class = DataBlob
+        else:
+            self._datablob_class = datablob_class
+        metadata = self._datablob_class.metadata_from_filesystem(
+            hyperparams=hyperparams,
+            datablobs_directory=datablobs_directory,
+        )
+        super().__init__(
+            name=metadata.name,
+            group_name=metadata.group_name,
+            hyperparams=metadata.hyperparams,
+            hyperparams_class=metadata.hyperparams.__class__,
+            repeat=repeat,
+            per_replica_batch_size=per_replica_batch_size,
+            tf_distribute_strategy=tf_distribute_strategy,
+        )
+        self._datablobs_directory = datablobs_directory
+        self._num_shards = metadata.num_shards
+
+    def new_sharded_datablob(self, ctx: tf.distribute.InputContext):
+        shard_quantity = self._num_shards // ctx.num_input_pipelines
+        shard_offset = shard_quantity * ctx.input_pipeline_id
+        return self._datablob_class.from_filesystem(
+            hyperparams=self._hyperparams,
+            datablobs_directory=self._datablobs_directory,
+            shard_offset=shard_offset,
+            shard_quantity=shard_quantity,
+        )
+
+
+class _DistributedDataBlobFromExactPath(DistributedDataBlob):
+    """Implements :py:meth:`DataBlob.from_exact_path_distributed`."""
+
+    def __init__(
+        self,
+        *,
+        path: str,
+        datablob_class: Optional[Type[DataBlob]] = None,
+        repeat: Union[bool, int, None] = True,
+        per_replica_batch_size: Optional[int] = None,
+        tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
+    ):
+        if datablob_class is None:
+            self._datablob_class = DataBlob
+        else:
+            self._datablob_class = datablob_class
+        metadata = self._datablob_class.metadata_from_exact_path(
+            path=path,
+        )
+        super().__init__(
+            name=metadata.name,
+            group_name=metadata.group_name,
+            hyperparams=metadata.hyperparams,
+            hyperparams_class=metadata.hyperparams.__class__,
+            repeat=repeat,
+            per_replica_batch_size=per_replica_batch_size,
+            tf_distribute_strategy=tf_distribute_strategy,
+        )
+        self._path = path
+        self._num_shards = metadata.num_shards
+
+    def new_sharded_datablob(self, ctx: tf.distribute.InputContext):
+        shard_quantity = self._num_shards // ctx.num_input_pipelines
+        shard_offset = shard_quantity * ctx.input_pipeline_id
+        return DataBlob.from_exact_path(
+            path=self._path,
+            shard_offset=shard_offset,
+            shard_quantity=shard_quantity,
+        )

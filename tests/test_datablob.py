@@ -29,6 +29,14 @@ from tests.assertions import (
     tfdata_as_list,
     tfdata_get_first_shape_len,
 )
+from tests.fixtures import MyDataBlob as MyDataBlob3
+from tests.fixtures import (
+    MyModelTemplate,
+    MyShardableDataBlob,
+    MyShardableDistributedDataBlob,
+)
+
+# TODO(jamesmishra): Fix unit tests that have two conflicting definitions of "MyDataBlob". Remove "MyDataBlob3".  # pylint: disable=line-too-long
 
 
 def load_tests(loader, tests, ignore):  # pylint: disable=unused-argument
@@ -2039,3 +2047,306 @@ class TestDataBlobSaveLoadSharding(unittest.TestCase):
                             )
                             actual = list(getattr(loaded, subtype).as_numpy_iterator())
                             self.assertEqual(expected, actual)
+
+
+class DistributedDataBlobTestCase(unittest.TestCase):
+    """Common parent class for all :py:class:`DistributedDataBlob` unit tests."""
+
+    datablob_class = MyDataBlob3
+
+    def setUp(self):
+        """Set up each unit tests."""
+        self.tf_strategy_names = [
+            "MultiWorkerMirroredStrategy",
+            "MirroredStrategy",
+        ]
+        self.num_shards = 8
+        self.rows = 64
+        self.tempdir_context = (
+            tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        )
+        self.datablobs_directory = self.tempdir_context.name
+        self.datablob_hyperparams = dict(rows=self.rows, cols=5)
+        self.datablob = self.datablob_class(hyperparams=self.datablob_hyperparams)
+        self.datablob.save(self.datablobs_directory, num_shards=self.num_shards)
+        self.datablob_path = os.path.join(self.datablobs_directory, self.datablob.name)
+        self.model_template = MyModelTemplate(hyperparams=dict(layer_1_units=2))
+
+    def tearDown(self):
+        """Clean up the temporary datablobs directory after each unit test."""
+        self.tempdir_context.cleanup()
+
+    def assert_distributed_datablob_types(self, blob):
+        """
+        Assert the proper return types of a :py:class:`~scalarstop.datablob.DistributedDataBlob`.
+        """
+        self.assertIsInstance(blob, sp.DistributedDataBlob)
+        self.assertIsInstance(blob.hyperparams, sp.HyperparamsType)
+        self.assertIsInstance(blob.set_training(), tf.distribute.DistributedDataset)
+        self.assertIsInstance(blob.training, tf.distribute.DistributedDataset)
+        self.assertIsInstance(blob.set_validation(), tf.distribute.DistributedDataset)
+        self.assertIsInstance(blob.validation, tf.distribute.DistributedDataset)
+        self.assertIsInstance(blob.set_test(), tf.distribute.DistributedDataset)
+        self.assertIsInstance(blob.test, tf.distribute.DistributedDataset)
+        self.assertEqual(repr(blob), f"<sp.DistributedDataBlob {blob.name}>")
+
+    def assert_distributed_datablob_and_datablob_are_equal(
+        self,
+        blob1,
+        blob2,
+    ):
+        """
+        Assert that a :py:class:`~scalarstop.datablob.DataBlob` and a
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`
+        have the same name, group name, and hyperparameters.
+        """
+        self.assertEqual(blob1.name, blob2.name)
+        self.assertEqual(blob1.group_name, blob2.group_name)
+        self.assertEqual(blob1.hyperparams, blob2.hyperparams)
+        self.assertEqual(blob1.hyperparams_flat, blob2.hyperparams_flat)
+
+
+class Test_DistributedDataBlobFromFilesystem(DistributedDataBlobTestCase):
+    """Tests for :py:meth:`~scalarstop.datablob.DataBlob.from_filesystem_distributed`."""
+
+    def test_repeat_batch(self):
+        """
+        Test creating an infinitely-repeating
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`.
+        """
+        final_epoch = 4
+        per_replica_batch_size = 2
+        for tf_strategy_name in self.tf_strategy_names:
+            with self.subTest(tf_strategy=tf_strategy_name):
+                tf_strategy = getattr(tf.distribute, tf_strategy_name)()
+                distributed_datablob = self.datablob_class.from_filesystem_distributed(
+                    hyperparams=self.datablob_hyperparams,
+                    datablobs_directory=self.datablobs_directory,
+                    per_replica_batch_size=per_replica_batch_size,
+                    tf_distribute_strategy=tf_strategy,
+                )
+                self.assert_distributed_datablob_types(distributed_datablob)
+                self.assert_distributed_datablob_and_datablob_are_equal(
+                    self.datablob, distributed_datablob
+                )
+                with tf_strategy.scope():
+                    model = sp.KerasModel(
+                        datablob=distributed_datablob,
+                        model_template=self.model_template,
+                    )
+                steps_per_epoch = (
+                    self.rows
+                    // tf_strategy.num_replicas_in_sync
+                    // per_replica_batch_size
+                )
+                model.fit(
+                    final_epoch=final_epoch,
+                    verbose=0,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=steps_per_epoch,
+                )
+                self.assertEqual(model.current_epoch, final_epoch)
+
+    def test_nonrepeat_batch(self):
+        """
+        Test creating a batched
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`
+        that does not repeat.
+        """
+        final_epoch = 1
+        per_replica_batch_size = 2
+        for tf_strategy_name in self.tf_strategy_names:
+            with self.subTest(tf_strategy=tf_strategy_name):
+                tf_strategy = getattr(tf.distribute, tf_strategy_name)()
+                distributed_datablob = self.datablob_class.from_filesystem_distributed(
+                    hyperparams=self.datablob_hyperparams,
+                    datablobs_directory=self.datablobs_directory,
+                    repeat=False,
+                    per_replica_batch_size=per_replica_batch_size,
+                    tf_distribute_strategy=tf_strategy,
+                )
+                self.assert_distributed_datablob_types(distributed_datablob)
+                self.assert_distributed_datablob_and_datablob_are_equal(
+                    self.datablob, distributed_datablob
+                )
+                with tf_strategy.scope():
+                    model = sp.KerasModel(
+                        datablob=distributed_datablob,
+                        model_template=self.model_template,
+                    )
+                steps_per_epoch = (
+                    self.rows
+                    // tf_strategy.num_replicas_in_sync
+                    // per_replica_batch_size
+                )
+                model.fit(
+                    final_epoch=final_epoch,
+                    verbose=0,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=steps_per_epoch,
+                )
+                self.assertEqual(model.current_epoch, final_epoch)
+
+
+class Test_DistributedDataBlobFromExactPath(DistributedDataBlobTestCase):
+    """
+    Tests for :py:meth:`~scalarstop.datablob.DataBlob.from_exact_path`.
+    """
+
+    def test_repeat_batch(self):
+        """
+        Test creating an infinitely-repeating
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`.
+        """
+        final_epoch = 4
+        per_replica_batch_size = 2
+        for tf_strategy_name in self.tf_strategy_names:
+            with self.subTest(tf_strategy=tf_strategy_name):
+                tf_strategy = getattr(tf.distribute, tf_strategy_name)()
+                distributed_datablob = self.datablob_class.from_exact_path_distributed(
+                    path=self.datablob_path,
+                    per_replica_batch_size=per_replica_batch_size,
+                    tf_distribute_strategy=tf_strategy,
+                )
+                self.assert_distributed_datablob_types(distributed_datablob)
+                self.assert_distributed_datablob_and_datablob_are_equal(
+                    self.datablob, distributed_datablob
+                )
+                with tf_strategy.scope():
+                    model = sp.KerasModel(
+                        datablob=distributed_datablob,
+                        model_template=self.model_template,
+                    )
+                steps_per_epoch = (
+                    self.rows
+                    // tf_strategy.num_replicas_in_sync
+                    // per_replica_batch_size
+                )
+                model.fit(
+                    final_epoch=final_epoch,
+                    verbose=0,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=steps_per_epoch,
+                )
+                self.assertEqual(model.current_epoch, final_epoch)
+
+    def test_nonrepeat_batch(self):
+        """
+        Test creating a batched
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`
+        that does not repeat.
+        """
+        final_epoch = 1
+        per_replica_batch_size = 2
+        for tf_strategy_name in self.tf_strategy_names:
+            with self.subTest(tf_strategy=tf_strategy_name):
+                tf_strategy = getattr(tf.distribute, tf_strategy_name)()
+                distributed_datablob = self.datablob_class.from_exact_path_distributed(
+                    path=self.datablob_path,
+                    repeat=False,
+                    per_replica_batch_size=per_replica_batch_size,
+                    tf_distribute_strategy=tf_strategy,
+                )
+                self.assert_distributed_datablob_types(distributed_datablob)
+                self.assert_distributed_datablob_and_datablob_are_equal(
+                    self.datablob, distributed_datablob
+                )
+                with tf_strategy.scope():
+                    model = sp.KerasModel(
+                        datablob=distributed_datablob,
+                        model_template=self.model_template,
+                    )
+                steps_per_epoch = (
+                    self.rows
+                    // tf_strategy.num_replicas_in_sync
+                    // per_replica_batch_size
+                )
+                model.fit(
+                    final_epoch=final_epoch,
+                    verbose=0,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=steps_per_epoch,
+                )
+                self.assertEqual(model.current_epoch, final_epoch)
+
+
+class TestDistributedDataBlobSubclass(DistributedDataBlobTestCase):
+    """Tests creating a custom subclass of
+    :py:class:`~scalarstop.datablob.DistributedDataBlob`.
+    """
+
+    datablob_class = MyShardableDataBlob
+
+    def test_repeat_batch(self):
+        """Test creating an infinitely-repeating
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`.
+        """
+        final_epoch = 4
+        per_replica_batch_size = 2
+        for tf_strategy_name in self.tf_strategy_names:
+            with self.subTest(tf_strategy=tf_strategy_name):
+                tf_strategy = getattr(tf.distribute, tf_strategy_name)()
+                distributed_datablob = MyShardableDistributedDataBlob(
+                    hyperparams=self.datablob_hyperparams,
+                    per_replica_batch_size=per_replica_batch_size,
+                    tf_distribute_strategy=tf_strategy,
+                )
+                self.assert_distributed_datablob_types(distributed_datablob)
+                self.assert_distributed_datablob_and_datablob_are_equal(
+                    self.datablob, distributed_datablob
+                )
+                with tf_strategy.scope():
+                    model = sp.KerasModel(
+                        datablob=distributed_datablob,
+                        model_template=self.model_template,
+                    )
+                steps_per_epoch = (
+                    self.rows
+                    // tf_strategy.num_replicas_in_sync
+                    // per_replica_batch_size
+                )
+                model.fit(
+                    final_epoch=final_epoch,
+                    verbose=0,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=steps_per_epoch,
+                )
+                self.assertEqual(model.current_epoch, final_epoch)
+
+    def test_nonrepeat_batch(self):
+        """Test creating a batched
+        :py:class:`~scalarstop.datablob.DistributedDataBlob`
+        that does not repeat.
+        """
+        final_epoch = 1
+        per_replica_batch_size = 2
+        for tf_strategy_name in self.tf_strategy_names:
+            with self.subTest(tf_strategy=tf_strategy_name):
+                tf_strategy = getattr(tf.distribute, tf_strategy_name)()
+                distributed_datablob = MyShardableDistributedDataBlob(
+                    hyperparams=self.datablob_hyperparams,
+                    repeat=False,
+                    per_replica_batch_size=per_replica_batch_size,
+                    tf_distribute_strategy=tf_strategy,
+                )
+                self.assert_distributed_datablob_types(distributed_datablob)
+                self.assert_distributed_datablob_and_datablob_are_equal(
+                    self.datablob, distributed_datablob
+                )
+                with tf_strategy.scope():
+                    model = sp.KerasModel(
+                        datablob=distributed_datablob,
+                        model_template=self.model_template,
+                    )
+                steps_per_epoch = (
+                    self.rows
+                    // tf_strategy.num_replicas_in_sync
+                    // per_replica_batch_size
+                )
+                model.fit(
+                    final_epoch=final_epoch,
+                    verbose=0,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=steps_per_epoch,
+                )
+                self.assertEqual(model.current_epoch, final_epoch)
