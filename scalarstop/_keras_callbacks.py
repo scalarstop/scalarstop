@@ -50,6 +50,8 @@ class EpochCallback(tf.keras.callbacks.Callback):
         *,
         scalarstop_model,
         logger,
+        steps_per_epoch: Optional[int] = None,
+        validation_steps_per_epoch: Optional[int] = None,
         models_directory: Optional[str] = None,
         train_store=None,
         log_epochs: bool = False,
@@ -60,6 +62,8 @@ class EpochCallback(tf.keras.callbacks.Callback):
         self._train_store = train_store
         self._log_epochs = log_epochs
         self._logger = logger
+        self._steps_per_epoch = steps_per_epoch
+        self._validation_steps_per_epoch = validation_steps_per_epoch
 
     def on_epoch_end(  # pylint: disable=signature-differs
         self, epoch: int, logs: Dict[str, Any]
@@ -92,6 +96,8 @@ class EpochCallback(tf.keras.callbacks.Callback):
                 epoch_num=self._scalarstop_model.current_epoch,
                 model_name=self._scalarstop_model.name,
                 metrics=float_logs,
+                steps_per_epoch=self._steps_per_epoch,
+                validation_steps_per_epoch=self._validation_steps_per_epoch,
                 ignore_existing=True,
             )
 

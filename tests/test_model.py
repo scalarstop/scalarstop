@@ -557,6 +557,8 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
                         "metric__val_precision",
                         "metric__val_recall",
                         "model_name",
+                        "steps_per_epoch",
+                        "validation_steps_per_epoch",
                     ],
                 )
                 self.assertEqual(model_epochs_df["epoch_num"].tolist(), [1, 2, 3])
@@ -564,3 +566,141 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
                     model_epochs_df["model_name"].tolist(),
                     [model.name, model.name, model.name],
                 )
+                self.assertEqual(
+                    model_epochs_df["steps_per_epoch"].tolist(), [None, None, None]
+                )
+                self.assertEqual(
+                    model_epochs_df["validation_steps_per_epoch"].tolist(),
+                    [None, None, None],
+                )
+
+    @requires_sqlite_json
+    def test_fit_with_train_store_with_steps_per_epoch(self):
+        """Test that KerasModel.fit() can log to the TrainStore including steps_per_epoch."""
+        for steps_per_epoch in [1, 2, 3]:
+            for validation_steps_per_epoch in [1, 2, 3]:
+                with self.subTest(
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=validation_steps_per_epoch,
+                ):
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        sqlite_filename = os.path.join(temp_dir, "train_store.sqlite3")
+                        with sp.TrainStore.from_filesystem(
+                            filename=sqlite_filename
+                        ) as train_store:
+                            # Create and fit the model.
+                            # When we pass the train store, it will save the datablob,
+                            # model, and model template.
+                            model = sp.KerasModel(
+                                datablob=self.datablob.repeat(),
+                                model_template=self.model_template,
+                            )
+                            model.fit(
+                                final_epoch=3,
+                                verbose=0,
+                                train_store=train_store,
+                                steps_per_epoch=steps_per_epoch,
+                                validation_steps_per_epoch=validation_steps_per_epoch,
+                            )
+
+                            # Check that the models table contains the 1 model we saved.
+                            models_df = train_store.list_models()
+                            self.assertEqual(
+                                sorted(models_df.columns),
+                                [
+                                    "datablob_group_name",
+                                    "datablob_name",
+                                    "dbh__cols",
+                                    "dbh__rows",
+                                    "model_class_name",
+                                    "model_last_modified",
+                                    "model_name",
+                                    "model_template_group_name",
+                                    "model_template_name",
+                                    "mth__layer_1_units",
+                                    "mth__loss",
+                                    "mth__optimizer",
+                                ],
+                            )
+                            self.assertEqual(
+                                models_df["datablob_group_name"].tolist(),
+                                [self.datablob.group_name],
+                            )
+                            self.assertEqual(
+                                models_df["datablob_name"].tolist(),
+                                [self.datablob.name],
+                            )
+                            self.assertEqual(
+                                models_df["dbh__cols"].tolist(),
+                                [self.datablob.hyperparams.cols],
+                            )
+                            self.assertEqual(
+                                models_df["dbh__rows"].tolist(),
+                                [self.datablob.hyperparams.rows],
+                            )
+                            self.assertEqual(
+                                models_df["model_class_name"].tolist(), ["KerasModel"]
+                            )
+                            self.assertEqual(
+                                models_df["model_name"].tolist(), [model.name]
+                            )
+                            self.assertEqual(
+                                models_df["model_template_group_name"].tolist(),
+                                [self.model_template.group_name],
+                            )
+                            self.assertEqual(
+                                models_df["model_template_name"].tolist(),
+                                [self.model_template.name],
+                            )
+                            self.assertEqual(
+                                models_df["mth__layer_1_units"].tolist(),
+                                [self.model_template.hyperparams.layer_1_units],
+                            )
+                            self.assertEqual(
+                                models_df["mth__loss"].tolist(),
+                                [self.model_template.hyperparams.loss],
+                            )
+                            self.assertEqual(
+                                models_df["mth__optimizer"].tolist(),
+                                [self.model_template.hyperparams.optimizer],
+                            )
+
+                            # Check that the model_epochs table contains the 3 epochs we saved.
+                            model_epochs_df = train_store.list_model_epochs()
+                            self.assertEqual(
+                                sorted(model_epochs_df.columns),
+                                [
+                                    "epoch_num",
+                                    "last_modified",
+                                    "metric__binary_accuracy",
+                                    "metric__loss",
+                                    "metric__precision",
+                                    "metric__recall",
+                                    "metric__val_binary_accuracy",
+                                    "metric__val_loss",
+                                    "metric__val_precision",
+                                    "metric__val_recall",
+                                    "model_name",
+                                    "steps_per_epoch",
+                                    "validation_steps_per_epoch",
+                                ],
+                            )
+                            self.assertEqual(
+                                model_epochs_df["epoch_num"].tolist(), [1, 2, 3]
+                            )
+                            self.assertEqual(
+                                model_epochs_df["model_name"].tolist(),
+                                [model.name, model.name, model.name],
+                            )
+                            self.assertEqual(
+                                model_epochs_df["steps_per_epoch"].tolist(),
+                                [steps_per_epoch, steps_per_epoch, steps_per_epoch],
+                            )
+                            self.assertEqual(
+                                model_epochs_df["validation_steps_per_epoch"].tolist(),
+                                [
+                                    validation_steps_per_epoch,
+                                    validation_steps_per_epoch,
+                                    validation_steps_per_epoch,
+                                ],
+                            )
