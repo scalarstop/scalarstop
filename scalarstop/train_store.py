@@ -286,6 +286,8 @@ class _TrainStoreTables:
                 onupdate=utcnow,
                 nullable=False,
             ),
+            Column("steps_per_epoch", Integer, nullable=True),
+            Column("validation_steps_per_epoch", Integer, nullable=True),
             UniqueConstraint("model_epoch_num", "model_name"),
             extend_existing=True,
         )
@@ -1189,7 +1191,14 @@ class TrainStore:
         return pd.DataFrame(results_dicts)
 
     def insert_model_epoch(
-        self, *, epoch_num: int, model_name: str, metrics, ignore_existing: bool = False
+        self,
+        *,
+        epoch_num: int,
+        model_name: str,
+        metrics,
+        steps_per_epoch: Optional[int] = None,
+        validation_steps_per_epoch: Optional[int] = None,
+        ignore_existing: bool = False,
     ) -> None:
         """
         Logs a new epoch for a :py:class:`~scalarstop.model.Model`
@@ -1204,6 +1213,18 @@ class TrainStore:
             metrics: A dictionary of metric names and values
                 to save.
 
+            steps_per_epoch: The number of training steps that
+                count as one epoch. Defaults to ``None``, which means
+                that an epoch is defined by how long it takes for
+                the model's :py:class:`~scalarstop.datablob.DataBlob`
+                training dataset to be exhausted.
+
+            validation_steps_per_epoch: The number of validation steps that
+                count as one epoch. Defaults to ``None``, which means
+                that an epoch is defined by how long it takes for
+                the model's :py:class:`~scalarstop.datablob.DataBlob`
+                validation dataset to be exhausted.
+
             ignore_existing: Set this to ``True`` to ignore
                 if the database already has a row with the same
                 ``(model_name, epoch_num)`` pair.
@@ -1212,6 +1233,8 @@ class TrainStore:
             model_epoch_num=epoch_num,
             model_name=model_name,
             model_epoch_metrics=enforce_dict(metrics),
+            steps_per_epoch=steps_per_epoch,
+            validation_steps_per_epoch=validation_steps_per_epoch,
         )
         self._insert(
             table=self.table.model_epoch,
@@ -1283,6 +1306,8 @@ class TrainStore:
                     "last_modified"
                 ),
                 self.table.model_epoch.c.model_epoch_metrics.label("metrics"),
+                self.table.model_epoch.c.steps_per_epoch,
+                self.table.model_epoch.c.validation_steps_per_epoch,
             ]
         ).select_from(self.table.model_epoch)
         if model_name:

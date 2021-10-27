@@ -554,6 +554,8 @@ class KerasModel(Model):
                 EpochCallback(
                     scalarstop_model=self,
                     logger=logger or _LOGGER,
+                    steps_per_epoch=steps_per_epoch,
+                    validation_steps_per_epoch=validation_steps_per_epoch,
                     models_directory=models_directory,
                     log_epochs=log_epochs,
                     train_store=train_store,

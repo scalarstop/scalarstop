@@ -101,5 +101,7 @@ class TestTrainStoreMigrations(unittest.TestCase):
                                 "model_epoch_metrics",
                                 "model_epoch_num",
                                 "model_name",
+                                "steps_per_epoch",
+                                "validation_steps_per_epoch",
                             ],
                         )

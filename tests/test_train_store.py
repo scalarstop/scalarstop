@@ -480,12 +480,72 @@ class TrainStoreUnits:  # pylint: disable=no-member
                 "metric__accuracy",
                 "metric__loss",
                 "model_name",
+                "steps_per_epoch",
+                "validation_steps_per_epoch",
             ],
         )
         self.assertEqual(df["metric__accuracy"].tolist(), [5])
         self.assertEqual(df["metric__loss"].tolist(), [3])
         self.assertEqual(df["epoch_num"].tolist(), [0])
         self.assertEqual(df["model_name"].tolist(), [self.model.name])
+        self.assertEqual(df["steps_per_epoch"].tolist(), [None])
+        self.assertEqual(df["validation_steps_per_epoch"].tolist(), [None])
+
+    def test_insert_model_epoch_with_steps_per_epoch(self):
+        """
+        Test :py:meth:`~scalarstop.TrainStore.insert_model_epoch`
+        using the ``steps_per_epoch`` and ``validation_steps_per_epoch``
+        parameters.
+        """
+        # Insert our first ModelEpoch.
+        self.train_store.insert_datablob(self.datablob)
+        self.train_store.insert_model_template(self.model_template)
+        self.train_store.insert_model(self.model)
+        self.train_store.insert_model_epoch(
+            model_name=self.model.name,
+            epoch_num=0,
+            metrics=dict(loss=3, accuracy=5),
+            steps_per_epoch=3,
+            validation_steps_per_epoch=2,
+        )
+        self.assertEqual(len(self.train_store.list_model_epochs()), 1)
+
+        # Assert that we raise an exception when inserting another
+        # with the same name and epoch number.
+        with self.assertRaises(IntegrityError):
+            self.train_store.insert_model_epoch(
+                model_name=self.model.name, epoch_num=0, metrics={}
+            )
+
+        # Assert that we can suppress that exception.
+        self.train_store.insert_model_epoch(
+            model_name=self.model.name,
+            epoch_num=0,
+            metrics=dict(loss=3, accuracy=5),
+            ignore_existing=True,
+        )
+
+        # Examine what we inserted.
+        df = self.train_store.list_model_epochs()
+        self.assertEqual(len(df), 1)
+        self.assertEqual(
+            sorted(df.keys()),
+            [
+                "epoch_num",
+                "last_modified",
+                "metric__accuracy",
+                "metric__loss",
+                "model_name",
+                "steps_per_epoch",
+                "validation_steps_per_epoch",
+            ],
+        )
+        self.assertEqual(df["metric__accuracy"].tolist(), [5])
+        self.assertEqual(df["metric__loss"].tolist(), [3])
+        self.assertEqual(df["epoch_num"].tolist(), [0])
+        self.assertEqual(df["model_name"].tolist(), [self.model.name])
+        self.assertEqual(df["steps_per_epoch"].tolist(), [3])
+        self.assertEqual(df["validation_steps_per_epoch"].tolist(), [2])
 
     def test_bulk_insert_model_epochs(self):
         """Test :py:meth:`~scalarstop.TrainStore.bulk_insert_model_epochs`."""
