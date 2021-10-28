@@ -278,6 +278,7 @@ class DataBlob(DataBlobBase):
         *,
         hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
         datablobs_directory: str,
+        cache: bool = False,
         repeat: Union[bool, int, None] = True,
         per_replica_batch_size: Optional[int] = None,
         tf_distribute_strategy: Optional[tf.distribute.Strategy] = None,
@@ -293,6 +294,10 @@ class DataBlob(DataBlobBase):
             datablobs_directory: The parent directory of all of your saved
                 :py:class:`DataBlob` s. The exact filename is calculated
                 from the class name and hyperparams.
+
+            cache: Whether to cache the :py:class:`DataBlob` in memory.
+                If ``repeat`` is also enabled, then caching will
+                happen before repeating.
 
             repeat: Repeats the :py:class:`DataBlob` after loading it.
                 Set to ``True`` to enable infinite repeating.
@@ -313,6 +318,7 @@ class DataBlob(DataBlobBase):
             hyperparams=hyperparams,
             datablobs_directory=datablobs_directory,
             datablob_class=cls,
+            cache=cache,
             repeat=repeat,
             per_replica_batch_size=per_replica_batch_size,
             tf_distribute_strategy=tf_distribute_strategy,
@@ -388,6 +394,7 @@ class DataBlob(DataBlobBase):
         cls,
         *,
         path: str,
+        cache: bool = False,
         repeat: Union[bool, int, None] = True,
         per_replica_batch_size: Optional[int] = None,
         tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
@@ -396,6 +403,10 @@ class DataBlob(DataBlobBase):
         Args:
             path: The exact location of the saved :py:class:`DataBlob`
                 on the filesystem.
+
+            cache: Whether to cache the :py:class:`DataBlob` in memory.
+                If ``repeat`` is also enabled, then caching will
+                happen before repeating.
 
             repeat: Repeats the :py:class:`DataBlob` after loading it.
                 Set to ``True`` to enable infinite repeating.
@@ -415,6 +426,7 @@ class DataBlob(DataBlobBase):
         return _DistributedDataBlobFromExactPath(
             path=path,
             datablob_class=cls,
+            cache=cache,
             repeat=repeat,
             per_replica_batch_size=per_replica_batch_size,
             tf_distribute_strategy=tf_distribute_strategy,
@@ -1686,6 +1698,7 @@ class DistributedDataBlob(DataBlobBase):
         group_name: str,
         hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
         hyperparams_class: Type[HyperparamsType],
+        cache: bool = False,
         repeat: Union[bool, int, None] = True,
         per_replica_batch_size: Optional[int] = None,
         tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
@@ -1700,6 +1713,10 @@ class DistributedDataBlob(DataBlobBase):
 
             hyperparams_class: The :py:class:`HyperparamsType` class that
                 ``hyperparams`` instances are created from.
+
+            cache: Whether to cache the :py:class:`DataBlob` in memory.
+                If ``repeat`` is also enabled, then caching will
+                happen before repeating.
 
             repeat: Repeats the :py:class:`DataBlob` after loading it.
                 Set to ``True`` to enable infinite repeating.
@@ -1722,6 +1739,7 @@ class DistributedDataBlob(DataBlobBase):
         super().__init__(
             hyperparams=hyperparams,
         )
+        self._cache = cache
         self._repeat = repeat
         self._per_replica_batch_size = per_replica_batch_size
         self._tf_distribute_strategy = (
@@ -1775,10 +1793,16 @@ class DistributedDataBlob(DataBlobBase):
             Returns a :py:class:`DataBlob` that has been modified by
                 repeating, batching, or another transformation.
         """
+        # Optionally cache the DataBlob in memory as we iterate over it.
+        if self._cache:
+            datablob = datablob.cache()
+        # Optionally repeat the DataBlob an infinite number of times.
         if self._repeat is True:
             datablob = datablob.repeat()
+        # Or repeat the DataBlob a finite number of times.
         elif self._repeat is not False:
             datablob = datablob.repeat(count=self._repeat)
+        # Optionally batch the DataBlob.
         if self._per_replica_batch_size is not None:
             datablob = datablob.batch(
                 batch_size=self._per_replica_batch_size,
@@ -1885,6 +1909,7 @@ class _DistributedDataBlobFromFilesystem(DistributedDataBlob):
         hyperparams: Optional[Union[Mapping[str, Any], HyperparamsType]] = None,
         datablobs_directory: str,
         datablob_class: Optional[Type[DataBlob]] = None,
+        cache: bool = False,
         repeat: Union[bool, int, None] = True,
         per_replica_batch_size: Optional[int] = None,
         tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
@@ -1902,6 +1927,7 @@ class _DistributedDataBlobFromFilesystem(DistributedDataBlob):
             group_name=metadata.group_name,
             hyperparams=metadata.hyperparams,
             hyperparams_class=metadata.hyperparams.__class__,
+            cache=cache,
             repeat=repeat,
             per_replica_batch_size=per_replica_batch_size,
             tf_distribute_strategy=tf_distribute_strategy,
@@ -1928,6 +1954,7 @@ class _DistributedDataBlobFromExactPath(DistributedDataBlob):
         *,
         path: str,
         datablob_class: Optional[Type[DataBlob]] = None,
+        cache: bool = False,
         repeat: Union[bool, int, None] = True,
         per_replica_batch_size: Optional[int] = None,
         tf_distribute_strategy: Optional[tf.distribute.get_strategy] = None,
@@ -1944,6 +1971,7 @@ class _DistributedDataBlobFromExactPath(DistributedDataBlob):
             group_name=metadata.group_name,
             hyperparams=metadata.hyperparams,
             hyperparams_class=metadata.hyperparams.__class__,
+            cache=cache,
             repeat=repeat,
             per_replica_batch_size=per_replica_batch_size,
             tf_distribute_strategy=tf_distribute_strategy,
