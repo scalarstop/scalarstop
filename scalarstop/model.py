@@ -432,6 +432,16 @@ class KerasModel(Model):
         return 0
 
     def save(self, models_directory: str) -> None:
+        # The experimental_custom_gradients save option is only available
+        # on TensorFlow 2.6.0 and newer.
+        try:
+            save_options = (
+                tf.saved_model.SaveOptions(  # pylint: disable=unexpected-keyword-arg
+                    experimental_custom_gradients=True
+                )
+            )
+        except TypeError:
+            save_options = None
         model_path = os.path.join(models_directory, self.name)
         try:
             self._model.save(
@@ -439,6 +449,7 @@ class KerasModel(Model):
                 overwrite=True,
                 include_optimizer=True,
                 save_format="tf",
+                options=save_options,
             )
             history_path = os.path.join(model_path, _HISTORY_FILENAME)
             with open(history_path, "w", encoding="utf-8") as fp:
