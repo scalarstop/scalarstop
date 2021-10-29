@@ -137,7 +137,18 @@ names and hyperparameters.
 """  # pylint: disable=line-too-long
 import json
 import os
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
+from typing import (
+    Any,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 import numpy as np
 import tensorflow as tf
@@ -358,9 +369,21 @@ class KerasModel(Model):
         )
         model_path = os.path.join(models_directory, model_name)
 
+        # Check if the user has specified a mapping between object/class names within
+        # a SavedModel and importable Python classes and functions.
+        try:
+            custom_objects: Optional[Dict[str, Type]] = getattr(
+                model_template, "custom_objects", None
+            )
+        except IsNotImplemented:
+            custom_objects = None
+
         # Load the model.
         try:
-            model = tf.keras.models.load_model(model_path)
+            model = tf.keras.models.load_model(
+                model_path,
+                custom_objects=custom_objects,
+            )
         except (OSError, IOError) as exc:
             raise ModelNotFoundError(model_path) from exc
 
@@ -511,7 +534,7 @@ class KerasModel(Model):
             train_store: A :py:class:`~scalarstop.TrainStore`
                 instance, which is a client that persists metadata about
                 :py:class:`~scalarstop.datablob.DataBlob` s,
-                :py:class:`~scalarstop.model_template.ModelTemplate` s,
+                :py:class:`~scalarstop.model_template.KerasModelTemplate` s,
                 and :py:class:`~scalarstop.model.Model` s.
 
             tensorboard_directory: A directory on the filesystem to write

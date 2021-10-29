@@ -22,6 +22,7 @@ from scalarstop.datablob import DistributedDataBlob  # isort: skip
 from scalarstop.datablob_metadata import DataBlobMetadata  # isort:skip
 from scalarstop.dataclasses import dataclass  # isort:skip
 from scalarstop.model_template import ModelTemplate  # isort:skip
+from scalarstop.model_template import KerasModelTemplate  # isort:skip
 from scalarstop.model import Model  # isort:skip
 from scalarstop.model import KerasModel  # isort:skip
 from scalarstop.train_store import TrainStore  # isort:skip
