@@ -13,7 +13,7 @@ that makes it easy to keep track of many datasets at once.
 
 import errno
 import os
-from typing import Any, Mapping, Optional, Type, Union
+from typing import Any, Mapping, Optional, Type, Union, cast
 
 import pandas as pd
 import tensorflow as tf
@@ -982,6 +982,9 @@ class DataFrameDataBlob(DataBlob):
     def save_hook(self, *, subtype: str, path: str) -> None:
         super().save_hook(subtype=subtype, path=path)
         dataframe = getattr(self, subtype + "_dataframe", None)
+        if dataframe is None:
+            return
+        dataframe = cast(pd.DataFrame, dataframe)
         dataframe_path = os.path.join(path, _DATAFRAME_FILENAME)
         dataframe.to_pickle(
             path=dataframe_path,

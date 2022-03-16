@@ -42,7 +42,7 @@ def hash_id(
     # number generator, we have to consider that the hashing
     # algorithm could have a higher rate of collisions than a UUID.
     if length is None:
-        length = math.ceil(math.log(2 ** 122, len(alphabet)))
+        length = math.ceil(math.log(2**122, len(alphabet)))
     json_string = json.dumps(
         params,
         ensure_ascii=True,
