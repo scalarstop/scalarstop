@@ -12,7 +12,7 @@ jobs:
   test-mac:
     runs-on: macos-10.15
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         python-version:
           - "3.8"
