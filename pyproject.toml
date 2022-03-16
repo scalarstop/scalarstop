@@ -12,25 +12,26 @@ repository = "https://github.com/scalarstop/scalarstop"
 python = "^3.8"
 pandas = "*"
 numpy = "*"
-cloudpickle = "^1.6.0"
-SQLAlchemy = "^1.4.5"
-psycopg2-binary = "^2.8.6"
-alembic = "^1.7.1"
+cloudpickle = "^2.0"
+SQLAlchemy = "^1.4"
+alembic = "^1.7"
 log-with-context = "*"
 
 # These are optional dependencies installed
 # with pip extras. Seee the `tool.poetry.extras` section for more.
 tensorflow = { version = ">=2.6", optional = true }
 tensorflow-gpu = { version = ">=2.6", optional = true }
+psycopg2 = { version = "^2.9.3", optional = true }
+psycopg2-binary = { version = "^2.9.3", optional = true }
 
 [tool.poetry.dev-dependencies]
 # dev-dependencies does not include dependencies
 # for generating docs. they are stored in .readthedocs-requirements.txt
 pytest = "^5.2"
-black = "^20.8b1"
-isort = "^5.8.0"
-pylint = "^2.10.2"
-mypy = "^0.812"
+pylint = "^2.12.2"
+mypy = "^0.941"
+black = "^22.1.0"
+isort = "^5.10.1"
 coverage = "^5.5"
 jupyter = "^1.0.0"
 
@@ -39,6 +40,8 @@ jupyter = "^1.0.0"
 [tool.poetry.extras]
 tensorflow = ["tensorflow"]
 tensorflow-gpu = ["tensorflow-gpu"]
+psycopg2 = ["psycopg2"]
+psycopg2-binary = ["psycopg2-binary"]
 
 [tool.black]
 target-version = ['py38']
