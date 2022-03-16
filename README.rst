@@ -30,6 +30,9 @@ Installation
 
 ScalarStop is `available on PyPI <https://pypi.org/project/scalarstop/>`_.
 
+Selecting a TensorFlow package variant
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 If you are using TensorFlow on a CPU, you can install ScalarStop with the command:
 
 .. code:: bash
@@ -41,6 +44,24 @@ If you are using TensorFlow with GPUs, you can install ScalarStop with the comma
 .. code:: bash
 
     python3 -m pip install scalarstop[tensorflow-gpu]
+
+Selecting a PostgreSQL psycopg2 package variant
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you intend to use ScalarStop with PostgreSQL, you should also
+install either `psycopg2-binary <https://pypi.org/project/psycopg2-binary/>`_
+(`which works out of the box <https://www.psycopg.org/docs/install.html#psycopg-vs-psycopg-binary>`_)
+or `psycopg2 <https://pypi.org/project/psycopg2/>`_ (which you compile from source).
+
+Therefore, your installation command could look like either:
+
+.. code:: bash
+
+    python3 -m pip install scalarstop[tensorflow,psycopg2]
+    python3 -m pip install scalarstop[tensorflow,psycopg2-binary]
+    python3 -m pip install scalarstop[tensorflow-gpu,psycopg2]
+    python3 -m pip install scalarstop[tensorflow-gpu,psycopg2-binary]
+
 
 Development
 -----------
