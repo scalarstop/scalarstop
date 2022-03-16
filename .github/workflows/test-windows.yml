@@ -1,4 +1,4 @@
-name: test-ubuntu
+name: test-windows
 
 on:
   pull_request:
@@ -9,8 +9,8 @@ on:
       - 'v*' # Don't run these tests twice when cutting a new version.
 
 jobs:
-  test-ubuntu:
-    runs-on: "ubuntu-20.04"
+  test-windows:
+    runs-on: "windows-2019"
     strategy:
       fail-fast: false
       matrix:
@@ -18,16 +18,6 @@ jobs:
           - "3.8"
           - "3.9"
           - "3.10"
-
-    services:
-      postgres:
-        image: postgres:9.5.25-alpine
-        env:
-          POSTGRES_USER: scalarstop
-          POSTGRES_PASSWORD: changeme
-          POSTGRES_DB: train_store
-        ports:
-          - "5432:5432"
 
     steps:
     - uses: actions/checkout@v2
@@ -40,7 +30,7 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip wheel poetry
         poetry config virtualenvs.in-project true
-
+  
     - name: Cache the Poetry virtualenv
       uses: actions/cache@v2
       with:
@@ -52,15 +42,5 @@ jobs:
     - name: Install the package
       run: make install
 
-    - name: Check formatting (Python 3.8 only)
-      if: matrix.python-version == '3.8'
-      run: make fmt-check
-
-    - name: Run lint (Python 3.8 only)
-      if: matrix.python-version == '3.8'
-      run: make lint
-
-    - name: Run tests with PostgreSQL
+    - name: Run tests
       run: make test
-      env:
-        TRAIN_STORE_CONNECTION_STRING: "postgresql://scalarstop:changeme@localhost:5432/train_store"

@@ -183,13 +183,13 @@ class DataBlob(DataBlobBase):
     :py:attr:`DataBlob.validation`, and :py:attr:`DataBlob.test`.
 
     >>> datablob.training
-    <ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
+    <ZipDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(1,), dtype=tf.float32, name=None))>
     >>>
     >>> datablob.validation
-    <ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
+    <ZipDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(1,), dtype=tf.float32, name=None))>
     >>>
     >>> datablob.test
-    <ZipDataset shapes: ((3,), (1,)), types: (tf.float32, tf.float32)>
+    <ZipDataset element_spec=(TensorSpec(shape=(3,), dtype=tf.float32, name=None), TensorSpec(shape=(1,), dtype=tf.float32, name=None))>
 
     :py:class:`DataBlob` objects have some methods for applying
     :py:mod:`tf.data` transformations to the training, validation, and

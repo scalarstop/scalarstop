@@ -426,18 +426,13 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
             assert_directory(tensorboard_directory, [model.name])
             model_tb_dir = os.path.join(tensorboard_directory, model.name)
             assert_directory(model_tb_dir, ["train", "validation"])
-            assert not os.path.exists(
-                os.path.join(model_tb_dir, "train", "plugins", "profile")
-            )
             model.fit(
                 final_epoch=3,
                 verbose=0,
                 tensorboard_directory=tensorboard_directory,
                 profile_batch=(1, 2),
             )
-            assert os.path.exists(
-                os.path.join(model_tb_dir, "train", "plugins", "profile")
-            )
+            assert os.path.exists(os.path.join(model_tb_dir, "plugins", "profile"))
 
     def test_fit_with_steps_per_epoch(self):
         """Test that we can pass ``steps_per_epoch`` when fitting models."""

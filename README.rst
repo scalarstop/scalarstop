@@ -20,7 +20,7 @@ ScalarStop is a Python package that requires Python 3.8 or newer.
 Currently, ScalarStop only supports tracking
 `tf.data.Dataset <https://www.tensorflow.org/api_docs/python/tf/data/Dataset>`_
 datasets and `tf.keras.Model <https://www.tensorflow.org/api_docs/python/tf/keras/Model>`_
-models. As such, ScalarStop requires TensorFlow 2.6.0 or newer.
+models. As such, ScalarStop requires TensorFlow 2.8.0 or newer.
 
 We encourage anybody that would like to add support for other
 machine learning frameworks to ScalarStop. :)
