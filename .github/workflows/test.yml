@@ -1,4 +1,4 @@
-name: test-ubuntu
+name: test
 
 on:
   pull_request:
@@ -9,13 +9,19 @@ on:
       - 'v*' # Don't run these tests twice when cutting a new version.
 
 jobs:
-  test-ubuntu:
+  test:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: true
       matrix:
-        python-version: ["3.8"]
-        os: [ubuntu-20.04]
+        python-version:
+          - "3.8"
+          - "3.9"
+          - "3.10"
+        os:
+          - "ubuntu-20.04"
+          - "macos-10.15"
+          - "windows-2019"
 
     services:
       postgres:
@@ -39,17 +45,19 @@ jobs:
         python3 -m pip install --upgrade pip
         python3 -m pip install poetry
         poetry config virtualenvs.in-project true
-
+  
     - name: Install the package
       run: make install
 
     - name: Check formatting
+      if: startsWith(matrix.os,'ubuntu')
       run: make fmt-check
 
     - name: Run lint
+      if: startsWith(matrix.os,'ubuntu')
       run: make lint
-
-    - name: Run tests with PostgreSQL
+  
+    - name: Run tests
       run: make test
       env:
         TRAIN_STORE_CONNECTION_STRING: "postgresql://scalarstop:changeme@localhost:5432/train_store"

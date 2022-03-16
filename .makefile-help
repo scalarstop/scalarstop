@@ -8,7 +8,13 @@ shell:               create a shell inside the Poetry virtualenv.
 
 rm-venv:             delete the Poetry virtualenv.
 
+update:              updates Pyton dependencies in a Poetry virtualenv.
+
 install:             installs Python dependencies in a Poetry virtualenv.
+
+install-gpu:         installs Python dependencies with tensorflow-gpu.
+
+install-docs:        installs Python dependencies for building documentation.
 
 fmt:                 formats Python source code in-place.
 
