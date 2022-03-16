@@ -13,7 +13,7 @@ that makes it easy to keep track of many datasets at once.
 
 import errno
 import os
-from typing import cast, Any, Mapping, Optional, Type, Union
+from typing import Any, Mapping, Optional, Type, Union, cast
 
 import pandas as pd
 import tensorflow as tf
