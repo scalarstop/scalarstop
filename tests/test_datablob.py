@@ -1349,7 +1349,10 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
 
     def test_repeat_interleaved_finite_all(self):
         """Test repeating the training, validation, and test sets 2x."""
-        repeated = self.datablob.repeat_interleaved(2)
+        repeated = self.datablob.repeat_interleaved(
+            2,
+            deterministic=True,
+        )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
             self.training_repeated,
@@ -1365,7 +1368,9 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
 
     def test_repeat_interleaved_finite_training(self):
         """Test only repeating the training set 2x."""
-        repeated = self.datablob.repeat_interleaved(2, validation=False, test=False)
+        repeated = self.datablob.repeat_interleaved(
+            2, deterministic=True, validation=False, test=False
+        )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
             self.training_repeated,
@@ -1381,7 +1386,9 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
 
     def test_repeat_interleaved_finite_validation(self):
         """Test only repeating the validation set 2x."""
-        repeated = self.datablob.repeat_interleaved(2, training=False, test=False)
+        repeated = self.datablob.repeat_interleaved(
+            2, deterministic=True, training=False, test=False
+        )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
             self.training_unchanged,
@@ -1397,7 +1404,9 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
 
     def test_repeat_interleaved_finite_test(self):
         """Test only repeating the test set 2x."""
-        repeated = self.datablob.repeat_interleaved(2, training=False, validation=False)
+        repeated = self.datablob.repeat_interleaved(
+            2, deterministic=True, training=False, validation=False
+        )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
             self.training_unchanged,
