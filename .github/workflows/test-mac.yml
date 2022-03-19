@@ -32,7 +32,7 @@ jobs:
     - name: Install Pip and Poetry
       run: |
         python3 -m pip install --upgrade pip wheel poetry
-        poetry config virtualenvs.in-project trues
+        poetry config virtualenvs.in-project true
 
     - name: Cache the Poetry virtualenv
       uses: actions/cache@v2
