@@ -653,6 +653,49 @@ class DataBlob(DataBlobBase):
             test=test,
         )
 
+    def repeat_interleaved(  # pylint: disable=too-many-arguments
+        self,
+        count: int,
+        cycle_length: Optional[int] = None,
+        block_length: Optional[int] = None,
+        num_parallel_calls: Optional[int] = None,
+        deterministic: Optional[bool] = None,
+        *,
+        training: bool = True,
+        validation: bool = True,
+        test: bool = True,
+    ) -> "DataBlob":
+        """
+        Repeats this :py:class:`DataBlob`, but interleaved order.
+
+        Args:
+            count: Represents the number of times that the
+                elements in the :py:class:`tf.data.Dataset` should
+                be repeated. This must be a finite integer
+                greater than 0. It cannot be a negative number,
+                ``None``, or an infinite value.
+
+            training: Apply the repeat operator to the training set.
+                Defaults to ``True``.
+
+            validation: Apply the repeat operator to the validation set.
+                Defaults to ``True``.
+
+            test: Apply the repeat operator to the test set.
+                Defaults to ``True``.
+        """
+        return _RepeatInterleavedDataBlob(
+            wraps=self,
+            count=count,
+            cycle_length=cycle_length,
+            block_length=block_length,
+            num_parallel_calls=num_parallel_calls,
+            deterministic=deterministic,
+            training=training,
+            validation=validation,
+            test=test,
+        )
+
     def with_options(
         self,
         options: tf.data.Options,
@@ -1496,6 +1539,59 @@ class _RepeatDataBlob(_WrapDataBlob):
 
     def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
         return tfdata.repeat(self._count)
+
+
+class _RepeatInterleavedDataBlob(_WrapDataBlob):
+    """
+    Repeats this :py:class:`DataBlob` a given number of times, but interleaved.
+    """
+
+    def __init__(
+        self,
+        *,
+        wraps: Any,
+        count: int,
+        cycle_length: Optional[int] = None,
+        block_length: Optional[int] = None,
+        num_parallel_calls: Optional[int] = None,
+        deterministic: Optional[bool] = None,
+        training: bool,
+        validation: bool,
+        test: bool,
+    ):
+        if not count or count <= 0:
+            raise ValueError(
+                "DataBlob.repeat_interleaved(count) requires count to be >= 0. "
+                f"You supplied count = {count}."
+            )
+        super().__init__(
+            wraps=wraps, training=training, validation=validation, test=test
+        )
+
+        def _repeat_interleaved_inner(*args):
+            if len(args) == 1:
+                return tf.data.Dataset.from_tensors(args[0]).repeat(count=count)
+            if len(args) > 1:
+                return tf.data.Dataset.from_tensors(args).repeat(count=count)
+            raise RuntimeError(
+                f"Insufficient length for repeat_interleaved arguments: {args}"
+            )
+
+        self._repeat_interleaved_inner = _repeat_interleaved_inner
+        self._count = count
+        self._cycle_length = cycle_length
+        self._block_length = block_length
+        self._num_parallel_calls = num_parallel_calls
+        self._deterministic = deterministic
+
+    def _wrap_tfdata(self, tfdata: tf.data.Dataset) -> tf.data.Dataset:
+        return tfdata.interleave(
+            self._repeat_interleaved_inner,
+            cycle_length=self._cycle_length,
+            block_length=self._block_length,
+            num_parallel_calls=self._num_parallel_calls,
+            deterministic=self._deterministic,
+        )
 
 
 class _ShardDataBlob(_WrapDataBlob):
