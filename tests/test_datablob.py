@@ -1341,39 +1341,49 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
     def setUpClass(cls):
         cls.datablob = MyDataBlob()
         cls.training_unchanged = [1, 2, 3, 4, 5]
-        cls.training_repeated = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5]
+        cls.training_repeated_cl5 = [1, 2, 3, 4, 5, 1, 2, 3, 4, 5]
+        cls.training_repeated_cl1 = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
         cls.validation_unchanged = [6, 7, 8, 9, 10]
-        cls.validation_repeated = [6, 7, 8, 9, 10, 6, 7, 8, 9, 10]
+        cls.validation_repeated_cl1 = [6, 6, 7, 7, 8, 8, 9, 9, 10, 10]
+        cls.validation_repeated_cl5 = [6, 7, 8, 9, 10, 6, 7, 8, 9, 10]
         cls.test_unchanged = [11, 12, 13, 14, 15]
-        cls.test_repeated = [11, 12, 13, 14, 15, 11, 12, 13, 14, 15]
+        cls.test_repeated_cl1 = [11, 11, 12, 12, 13, 13, 14, 14, 15, 15]
+        cls.test_repeated_cl5 = [11, 12, 13, 14, 15, 11, 12, 13, 14, 15]
 
-    def test_repeat_interleaved_finite_all(self):
-        """Test repeating the training, validation, and test sets 2x."""
+    def test_repeat_interleaved_cl5_finite_all(self):
+        """Test repeat-interleaving the training, validation, and test sets 2x with cycle length 5."""
         repeated = self.datablob.repeat_interleaved(
             2,
+            cycle_length=5,
             deterministic=True,
+            num_parallel_calls=1,
         )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
-            self.training_repeated,
+            self.training_repeated_cl5,
         )
         self.assertEqual(
             list(repeated.validation.as_numpy_iterator()),
-            self.validation_repeated,
+            self.validation_repeated_cl5,
         )
         self.assertEqual(
             list(repeated.test.as_numpy_iterator()),
-            self.test_repeated,
+            self.test_repeated_cl5,
         )
 
-    def test_repeat_interleaved_finite_training(self):
-        """Test only repeating the training set 2x."""
+    def test_repeat_interleaved_cl5_finite_training(self):
+        """Test only repeat-interleaving the training set 2x with cycle length 5."""
         repeated = self.datablob.repeat_interleaved(
-            2, deterministic=True, validation=False, test=False
+            2,
+            cycle_length=5,
+            deterministic=True,
+            num_parallel_calls=1,
+            validation=False,
+            test=False,
         )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
-            self.training_repeated,
+            self.training_repeated_cl5,
         )
         self.assertEqual(
             list(repeated.validation.as_numpy_iterator()),
@@ -1384,10 +1394,15 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
             self.test_unchanged,
         )
 
-    def test_repeat_interleaved_finite_validation(self):
-        """Test only repeating the validation set 2x."""
+    def test_repeat_interleaved_cl5_finite_validation(self):
+        """Test only repeat-interleaving the validation set 2x with cycle length 5."""
         repeated = self.datablob.repeat_interleaved(
-            2, deterministic=True, training=False, test=False
+            2,
+            cycle_length=5,
+            deterministic=True,
+            num_parallel_calls=1,
+            training=False,
+            test=False,
         )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
@@ -1395,17 +1410,22 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
         )
         self.assertEqual(
             list(repeated.validation.as_numpy_iterator()),
-            self.validation_repeated,
+            self.validation_repeated_cl5,
         )
         self.assertEqual(
             list(repeated.test.as_numpy_iterator()),
             self.test_unchanged,
         )
 
-    def test_repeat_interleaved_finite_test(self):
-        """Test only repeating the test set 2x."""
+    def test_repeat_interleaved_cl5_finite_test(self):
+        """Test only repeat-interleaving the test set 2x with cycle length 5."""
         repeated = self.datablob.repeat_interleaved(
-            2, deterministic=True, training=False, validation=False
+            2,
+            cycle_length=5,
+            deterministic=True,
+            num_parallel_calls=1,
+            training=False,
+            validation=False,
         )
         self.assertEqual(
             list(repeated.training.as_numpy_iterator()),
@@ -1417,13 +1437,102 @@ class Test_RepeatInterleavedDataBlob(DataBlobTestCase):
         )
         self.assertEqual(
             list(repeated.test.as_numpy_iterator()),
-            self.test_repeated,
+            self.test_repeated_cl5,
         )
 
-    def test_repeat_interleaved_infinite(self):
+    def test_repeat_interleaved_cl1_finite_all(self):
+        """Test repeat-interleaving the training, validation, and test sets 2x with cycle length 1."""
+        repeated = self.datablob.repeat_interleaved(
+            2,
+            cycle_length=1,
+            deterministic=True,
+            num_parallel_calls=1,
+        )
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_repeated_cl1,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_repeated_cl1,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_repeated_cl1,
+        )
+
+    def test_repeat_interleaved_cl1_finite_training(self):
+        """Test only repeat-interleaving the training set 2x with cycle length 1."""
+        repeated = self.datablob.repeat_interleaved(
+            2,
+            cycle_length=1,
+            deterministic=True,
+            num_parallel_calls=1,
+            validation=False,
+            test=False,
+        )
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_repeated_cl1,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_unchanged,
+        )
+
+    def test_repeat_interleaved_cl1_finite_validation(self):
+        """Test only repeat-interleaving the validation set 2x with cycle length 1."""
+        repeated = self.datablob.repeat_interleaved(
+            2,
+            cycle_length=1,
+            deterministic=True,
+            num_parallel_calls=1,
+            training=False,
+            test=False,
+        )
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_repeated_cl1,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_unchanged,
+        )
+
+    def test_repeat_interleaved_cl1_finite_test(self):
+        """Test only repeat-interleaving the test set 2x with cycle length 1."""
+        repeated = self.datablob.repeat_interleaved(
+            2,
+            cycle_length=1,
+            deterministic=True,
+            num_parallel_calls=1,
+            training=False,
+            validation=False,
+        )
+        self.assertEqual(
+            list(repeated.training.as_numpy_iterator()),
+            self.training_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.validation.as_numpy_iterator()),
+            self.validation_unchanged,
+        )
+        self.assertEqual(
+            list(repeated.test.as_numpy_iterator()),
+            self.test_repeated_cl1,
+        )
+
+    def test_repeat_interleaved_infinite_does_not_work(self):
         """
-        Test repeating the training, validation, and test sets an
-        infinite number of times.
+        Test that we do not allow repeat-interleaving with infinite length.
         """
         for count in [None, -1]:
             with self.subTest(count=count):
