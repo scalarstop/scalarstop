@@ -38,9 +38,7 @@ jobs:
       uses: actions/cache@v2
       with:
         path: .venv
-        key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-pyproject-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-pyproject-
+        key: ubuntu-20.04-python-${{ steps.setup-python.outputs.python-version }}-pyproject-${{ hashFiles('**/pyproject.toml') }}
 
     - name: Install ScalarStop and its Python dependencies
       run: make install
