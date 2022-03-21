@@ -156,6 +156,34 @@ _LOGGER = Logger(__name__)
 _HISTORY_FILENAME = "history.json"
 
 
+def latest_epoch_on_filesystem(model_path: str) -> int:
+    """
+    Returns the latest saved epoch number on the filesystem.
+
+    Raises:
+        ModelNotFoundError: Raised when we cannot find the model.
+            If you intend on subclassing
+            :py:meth:`~Model.from_filesystem`, make sure to raise
+            this exception when you cannot find the model.
+    """
+    try:
+        filenames = os.listdir(model_path)
+    except (OSError, IOError) as exc:
+        raise ModelNotFoundError(model_path) from exc
+
+    epochs = []
+    for filename in filenames:
+        try:
+            epoch = int(filename)
+        except ValueError:
+            continue
+        epochs.append(epoch)
+
+    if not epochs:
+        raise ModelNotFoundError(model_path)
+    return max(epochs)
+
+
 class Model:
     """Abstract parent class for all ScalarStop models."""
 
@@ -168,6 +196,7 @@ class Model:
         datablob: Union[DataBlob, DistributedDataBlob],
         model_template: ModelTemplate,
         models_directory: str,
+        epoch_num: Optional[int] = None,
     ) -> "Model":
         """
         Load an already-trained model from the filesystem.
@@ -183,6 +212,9 @@ class Model:
             models_directory: The directory where you store all of your
                 pretrained models. This is the *parent* directory
                 of a single pretrained model.
+
+            epoch_num: The saved epoch number to load. By default,
+                we load the latest epoch.
 
         Returns:
             A :py:class:`Model` with weights and configuration from
@@ -203,6 +235,7 @@ class Model:
         datablob: Union[DataBlob, DistributedDataBlob],
         model_template: ModelTemplate,
         models_directory: str,
+        epoch_num: Optional[int] = None,
     ) -> "Model":
         """
         Load a saved model from the filesystem. If we can't find one, create a new one with
@@ -220,6 +253,9 @@ class Model:
                 pretrained models. This is the *parent* directory
                 of a single pretrained model.
 
+            epoch_num: The saved epoch number to load. By default,
+                we load the latest epoch.
+
         Returns:
             A :py:class:`Model` instance.
         """
@@ -228,6 +264,7 @@ class Model:
                 datablob=datablob,
                 model_template=model_template,
                 models_directory=models_directory,
+                epoch_num=epoch_num,
             )
         except ModelNotFoundError:
             return cls(datablob=datablob, model_template=model_template)
@@ -295,9 +332,16 @@ class Model:
         return self._model
 
     @staticmethod
-    def load(model_path: str) -> Any:
+    def load(model_path: str, epoch_num: Optional[int] = None) -> Any:
         """
         Loads a model.
+
+        Args:
+            model_path: The filesystem directory for this specific model.
+                (e.g. `models_directory/model_name`)
+
+            epoch_num: The saved epoch number to load. By default,
+                we load the latest epoch.
 
         Raises:
             ModelNotFoundError: Raised when a saved copy of the model cannot
@@ -352,20 +396,24 @@ class KerasModel(Model):
         datablob: Union[DataBlob, DistributedDataBlob],
         model_template: ModelTemplate,
         models_directory: str,
+        epoch_num: Optional[int] = None,
     ) -> "KerasModel":
         model_name = cls.calculate_name(
             datablob_name=datablob.name, model_template_name=model_template.name
         )
         model_path = os.path.join(models_directory, model_name)
+        if epoch_num is None:
+            epoch_num = latest_epoch_on_filesystem(model_path)
+        model_epoch_path = os.path.join(model_path, str(epoch_num))
 
         # Load the model.
         try:
-            model = tf.keras.models.load_model(model_path)
+            model = tf.keras.models.load_model(model_epoch_path)
         except (OSError, IOError) as exc:
             raise ModelNotFoundError(model_path) from exc
 
         # Try to load the history.
-        history_path = os.path.join(model_path, _HISTORY_FILENAME)
+        history_path = os.path.join(model_epoch_path, _HISTORY_FILENAME)
         try:
             with open(history_path, "r", encoding="utf-8") as fh:
                 history = json.load(fh)
@@ -442,16 +490,18 @@ class KerasModel(Model):
             )
         except TypeError:
             save_options = None
-        model_path = os.path.join(models_directory, self.name)
+        model_epoch_path = os.path.join(
+            models_directory, self.name, str(self.current_epoch)
+        )
         try:
             self._model.save(
-                filepath=model_path,
-                overwrite=True,
+                filepath=model_epoch_path,
+                overwrite=False,
                 include_optimizer=True,
                 save_format="tf",
                 options=save_options,
             )
-            history_path = os.path.join(model_path, _HISTORY_FILENAME)
+            history_path = os.path.join(model_epoch_path, _HISTORY_FILENAME)
             with open(history_path, "w", encoding="utf-8") as fp:
                 json.dump(
                     obj=self.history,
@@ -462,9 +512,9 @@ class KerasModel(Model):
         except BaseException:
             warn(
                 "Caught exception while saving Keras model. "
-                f"Removing partially-saved results at {model_path}"
+                f"Removing partially-saved results at {model_epoch_path}"
             )
-            rmtree(model_path)
+            rmtree(model_epoch_path)
             raise
 
     def fit(  # pylint: disable=arguments-differ
