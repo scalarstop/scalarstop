@@ -103,15 +103,18 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
     def test_model_not_found_missing_history(self):
         """Test what happens when we load a KerasModel that has no history."""
         # Fit a model.
-        retval = self.keras_model.fit(final_epoch=2, verbose=0)
+        current_epoch = 2
+        retval = self.keras_model.fit(final_epoch=current_epoch, verbose=0)
         assert_model_after_fit(
             return_value=retval, model=self.keras_model, expected_epochs=2
         )
 
         # Use Keras's save function, which will not save a history.json.
         self.keras_model.model.save(
-            filepath=os.path.join(self.models_directory, self.keras_model.name),
-            overwrite=True,
+            filepath=os.path.join(
+                self.models_directory, self.keras_model.name, str(current_epoch)
+            ),
+            overwrite=False,
             include_optimizer=True,
             save_format="tf",
         )
@@ -246,8 +249,10 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
         # Test that we can save a model before doing any training.
         self.keras_model.save(self.models_directory)
         assert_directory(self.models_directory, [self.keras_model.name])
-        model_path = os.path.join(self.models_directory, self.keras_model.name)
-        assert_keras_saved_model_directory(model_path)
+        model_epoch_0_path = os.path.join(
+            self.models_directory, self.keras_model.name, "0"
+        )
+        assert_keras_saved_model_directory(model_epoch_0_path)
 
         # Test loading the model we saved.
         loaded_model_1 = sp.KerasModel.from_filesystem(
@@ -269,8 +274,11 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
             model_template=self.model_template,
             models_directory=self.models_directory,
         )
+        model_epoch_3_path = os.path.join(
+            self.models_directory, self.keras_model.name, "3"
+        )
         assert_directory(self.models_directory, [loaded_model_2.name])
-        assert_keras_saved_model_directory(model_path)
+        assert_keras_saved_model_directory(model_epoch_3_path)
         assert_spkeras_models_are_equal(loaded_model_1, loaded_model_2)
 
         # Fit the model again and save.
@@ -284,8 +292,11 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
             model_template=self.model_template,
             models_directory=self.models_directory,
         )
+        model_epoch_5_path = os.path.join(
+            self.models_directory, self.keras_model.name, "5"
+        )
         assert_directory(self.models_directory, [loaded_model_3.name])
-        assert_keras_saved_model_directory(model_path)
+        assert_keras_saved_model_directory(model_epoch_5_path)
         assert_spkeras_models_are_equal(loaded_model_2, loaded_model_3)
 
     def test_save_callback_with_different_directories(self):
@@ -294,10 +305,13 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
         model1 = self.keras_model
         model_name = model1.name
         with tempfile.TemporaryDirectory() as dir1:
-            model1.fit(final_epoch=3, verbose=0, models_directory=dir1)
-            self.assertEqual(model1.current_epoch, 3)
+            current_epoch = 3
+            model1.fit(final_epoch=current_epoch, verbose=0, models_directory=dir1)
+            self.assertEqual(model1.current_epoch, current_epoch)
             assert_directory(dir1, [model_name])
-            assert_keras_saved_model_directory(os.path.join(dir1, model_name))
+            assert_keras_saved_model_directory(
+                os.path.join(dir1, model_name, str(current_epoch))
+            )
 
             # Load the model from the filesystem, train it, and save it.
             model2 = sp.KerasModel.from_filesystem(
@@ -305,7 +319,7 @@ class TestKerasModel(unittest.TestCase):  # pylint: disable=too-many-public-meth
                 model_template=self.model_template,
                 models_directory=dir1,
             )
-            self.assertEqual(model2.current_epoch, 3)
+            self.assertEqual(model2.current_epoch, current_epoch)
         assert_spkeras_models_are_equal(model1, model2)
         with tempfile.TemporaryDirectory() as dir2:
             model2.fit(final_epoch=6, verbose=0, models_directory=dir2)
