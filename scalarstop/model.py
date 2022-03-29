@@ -496,7 +496,7 @@ class KerasModel(Model):
         try:
             self._model.save(
                 filepath=model_epoch_path,
-                overwrite=False,
+                overwrite=True,
                 include_optimizer=True,
                 save_format="tf",
                 options=save_options,
